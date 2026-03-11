@@ -20,6 +20,7 @@ class GoogleLoginController extends Controller
             'client_id' => env('GOOGLE_CLIENT_ID'),
         ]);
 
+        
         $payload = $client->verifyIdToken($request->id_token);
 
         if (!$payload) {
@@ -28,13 +29,14 @@ class GoogleLoginController extends Controller
             ], 401);
         }
 
-        $user = User::updateOrCreate(
-            ['email' => $payload['email']],
-            [
-                'name' => $payload['name'] ?? 'Google User',
-                'password' => Hash::make(Str::random(20)), // dummy
-            ]
-        );
+      $user = User::updateOrCreate(
+    ['email' => $payload['email']],
+    [
+        'name' => $payload['name'] ?? 'Google User',
+        'provider' => 'google',      
+    
+    ]
+);
 
         $token = $user->createToken('mobile')->plainTextToken;
 
