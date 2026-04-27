@@ -11,13 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('otp_verifications', function (Blueprint $table) {
-            $table->id();
-            $table->string('email');
-   $table->string('otp', 6);
-
-    $table->timestamp('expires_at');
-            $table->timestamps();
+        Schema::table('activities', function (Blueprint $table) {
+            $table->string('custom_sound_path')->nullable()->after('reminder_sound');
         });
     }
 
@@ -26,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('otp_verifications');
+        Schema::table('activities', function (Blueprint $table) {
+            $table->dropColumn('custom_sound_path');
+        });
     }
 };

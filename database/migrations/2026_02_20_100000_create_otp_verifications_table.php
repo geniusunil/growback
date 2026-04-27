@@ -6,24 +6,19 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-  
     public function up(): void
     {
-        Schema::create('tasks', function (Blueprint $table) {
+        Schema::create('otp_verifications', function (Blueprint $table) {
             $table->id();
             $table->string('email');
-             $table->string('title');
-        $table->text('description');
-        $table->string('category');
-       $table->time('start_time');
-$table->time('end_time');
+            $table->string('otp', 6);
+            $table->timestamp('expires_at');
             $table->timestamps();
         });
     }
 
-
     public function down(): void
     {
-        Schema::dropIfExists('tasks');
+        Schema::dropIfExists('otp_verifications');
     }
 };

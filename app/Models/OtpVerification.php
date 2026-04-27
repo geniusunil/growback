@@ -7,5 +7,5 @@ use Illuminate\Database\Eloquent\Model;
 class OtpVerification extends Model
 {
     protected $fillable = ['email', 'otp', 'expires_at'];
-    public $timestamps = true; 
+    public $timestamps = true;
 }

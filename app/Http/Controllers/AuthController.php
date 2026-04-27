@@ -5,10 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\OtpVerification;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
@@ -16,25 +17,17 @@ class AuthController extends Controller
      * STEP 1: Send OTP
      */
     public function signup(Request $request)
-    {                                                                            
-$validator = Validator::make($request->all(), [
-    'email' => [
-        'required',
-        'regex:/^[A-Za-z0-9]+([.-][A-Za-z0-9]+)?@[A-Za-z0-9-]+\.[A-Za-z]{2,}$/'
-    ],
-], [
-    'email.required' => 'Email is required',
-    'email.regex' => 'Invalid email format'
-]);
-
-if ($validator->fails()) {
-    return response()->json([
-        'status' => false,
-        'message' => $validator->errors()->first()
-    ], 422);
+    {
     
-}
-   $otp = random_int(100000, 999999);
+        $request->validate([
+            'email' => [
+                'required', 
+                'min:6', 
+                'regex:/^[A-Za-z0-9]+(.[A-Za-z0-9]+)?@[A-Za-z0-9-]+.[A-Za-z]{2,}$/'
+            ],
+        ]);
+
+        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         OtpVerification::updateOrCreate(
             ['email' => $request->email],
@@ -43,8 +36,14 @@ if ($validator->fails()) {
                 'expires_at' => Carbon::now()->addMinutes(5),
             ]
         );
- 
-        Mail::to($request->email)->send(new OtpMail($otp));
+
+        try {
+            Mail::to($request->email)->send(new OtpMail($otp));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Email sending failed: ' . $e->getMessage(),
+            ], 500);
+        }
 
         return response()->json([
             'message' => 'OTP sent to email',
@@ -56,22 +55,18 @@ if ($validator->fails()) {
      */
     public function verifyOtp(Request $request)
     {
-  $request->validate([
+        $request->validate([
             'email' => 'required|email',
             'otp'   => 'required',
         ]);
 
+        $record = OtpVerification::where('email', $request->email)->first();
 
-       $record = OtpVerification::where('email', $request->email)
-    ->first();
-
-if (!$record || (string)$record->otp !== (string)$request->otp) {
-    return response()->json([
-        'message' => 'Invalid OTP',
-    ], 400);
-}
-
-
+        if (!$record || (string)$record->otp !== (string)$request->otp) {
+            return response()->json([
+                'message' => 'Invalid OTP',
+            ], 400);
+        }
 
         if (Carbon::now()->gt($record->expires_at)) {
             return response()->json([
@@ -79,21 +74,16 @@ if (!$record || (string)$record->otp !== (string)$request->otp) {
             ], 400);
         }
 
-        // User create ya fetch
+        // User create or fetch
         $user = User::firstOrCreate(
             ['email' => $request->email],
             [
-                'name' => 'OTP User',
-        
+                'username' => explode('@', $request->email)[0] . '_' . Str::random(4),
+                'password' => Hash::make(Str::random(20)),
             ]
         );
 
-        $user->update([
-    'email_verified_at' => now()
-]);
-
-
-       
+        // OTP one-time use
         $record->delete();
 
         // Token generate
