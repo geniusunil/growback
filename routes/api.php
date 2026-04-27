@@ -5,6 +5,10 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoogleLoginController;
 use App\Http\Controllers\ActivityController;
 
+Route::get('check-connection', function (){ 
+    return response()->json(['message' => 'API is working']);
+});
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
