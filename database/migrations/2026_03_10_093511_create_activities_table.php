@@ -14,18 +14,22 @@ return new class extends Migration
         Schema::create('activities', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->onDelete('cascade');
-            $table->string('guest_id')->nullable(); // For tracking guest sessions/devices
+            $table->string('guest_id')->nullable();
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('category')->default('General');
-            $table->json('reminder_times')->nullable(); // Store [ { "time": "hh:mm", "fixed": boolean }, ... ]
-            $table->string('frequency_unit')->default('days'); // minutes, hours, days, weeks, months, years
-            $table->integer('frequency_value')->default(1); // the 'n' in 'Every n ...'
-            $table->string('reminder_sound')->default('small'); // continuous, small, none
+            $table->json('reminder_times')->nullable();
+            $table->string('frequency_unit')->default('days');
+            $table->integer('frequency_value')->default(1);
+            $table->string('reminder_sound')->default('small');
+            $table->string('custom_sound_path')->nullable();
             $table->boolean('reminder_vibration')->default(true);
             $table->boolean('show_in_drawer')->default(true);
-             
+            $table->boolean('notification_sound')->default(true);
+            $table->boolean('notification_vibration')->default(true);
+            $table->boolean('show_full_screen')->default(false);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
