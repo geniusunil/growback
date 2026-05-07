@@ -25,6 +25,7 @@ class Activity extends Model
         'show_full_screen',
         'custom_sound_path',
         'due_date',
+         'status',
     ];
 
     protected $casts = [

@@ -9,36 +9,64 @@ use Illuminate\Support\Facades\Log;
 
 use Illuminate\Support\Facades\Validator;
 
+
 class ActivityController extends Controller
 {
     /**
      * Display a listing of activities for a user/guest.
      */
-    public function index(Request $request)
-    {
-        try {
-            $user_id = $request->query('user_id');
-            $guest_id = $request->query('guest_id');
+public function index(Request $request)
+{
+    try {
 
-            if (!$user_id && !$guest_id) {
-                return response()->json(['success' => false, 'message' => 'Missing ID'], 400);
-            }
+        $user_id = $request->query('user_id');
+        $guest_id = $request->query('guest_id');
 
-            $activities = Activity::query()
-                ->when($user_id, fn($q) => $q->where('user_id', $user_id))
-                ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
-                ->orderBy('updated_at', 'desc')
-                ->get();
-
+        if (!$user_id && !$guest_id) {
             return response()->json([
-                'success' => true,
-                'activities' => $activities
+                'success' => false,
+                'message' => 'Missing ID'
+            ], 400);
+        }
+
+        // TODAY DATE
+        $today = now()->toDateString();
+
+        Activity::query()
+            ->whereDate('due_date', '<', $today)
+            ->where('status', '!=', 2)
+            ->update([
+                'status' => 3
             ]);
 
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
+        // FETCH SORTED ACTIVITIES
+        $activities = Activity::query()
+
+            ->when($user_id, fn($q) => $q->where('user_id', $user_id))
+
+            ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
+
+            // SORT BY CLOSEST DATE
+            ->orderByRaw(
+                "ABS(DATEDIFF(due_date, ?)) ASC",
+                [$today]
+            )
+
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'activities' => $activities
+        ]);
+
+    } catch (\Exception $e) {
+
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Store a newly created activity in storage.
@@ -64,6 +92,7 @@ class ActivityController extends Controller
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
                 'due_date' => 'required|date',
+                'status' => 'nullable|integer|in:1,2,3',
             ]);
 
             if ($validator->fails()) {
@@ -118,6 +147,7 @@ class ActivityController extends Controller
                 'show_full_screen' => 'required|boolean',
                 'custom_sound_path' => 'nullable|string',
                 'due_date' => 'required|date',
+                'status' => 'nullable|integer|in:1,2,3',
             ]);
 
             if ($validator->fails()) {

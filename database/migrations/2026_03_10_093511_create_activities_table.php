@@ -19,6 +19,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->string('category')->default('General');
             $table->date('due_date');
+             $table->tinyInteger('status');
             $table->json('reminder_times')->nullable();
             $table->string('frequency_unit')->default('days');
             $table->integer('frequency_value')->default(1);
