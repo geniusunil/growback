@@ -24,7 +24,7 @@ class Activity extends Model
         'notification_vibration',
         'show_full_screen',
         'custom_sound_path',
-      
+        'due_date',
     ];
 
     protected $casts = [

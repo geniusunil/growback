@@ -63,6 +63,7 @@ class ActivityController extends Controller
                 'notification_vibration' => 'nullable|boolean',
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
+                'due_date' => 'nullable|date',
             ]);
 
             if ($validator->fails()) {
@@ -116,6 +117,7 @@ class ActivityController extends Controller
                 'notification_vibration' => 'required|boolean',
                 'show_full_screen' => 'required|boolean',
                 'custom_sound_path' => 'nullable|string',
+                'due_date' => 'nullable|date',
             ]);
 
             if ($validator->fails()) {
