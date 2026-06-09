@@ -8,6 +8,7 @@ use App\Models\Activity;
 use Illuminate\Support\Facades\Log;
 
 use Illuminate\Support\Facades\Validator;
+use App\Models\Attachment;
 
 
 class ActivityController extends Controller
@@ -71,56 +72,113 @@ public function index(Request $request)
     /**
      * Store a newly created activity in storage.
      */
-    public function store(Request $request)
-    {
-        Log::info('Activity store request arrived', $request->all());
-        try {
-            $validator = Validator::make($request->all(), [
-                'user_id' => 'nullable|exists:users,id',
-                'guest_id' => 'nullable|string',
-                'title' => 'required|string|max:255',
-                'description' => 'nullable|string',
-                'category' => 'nullable|string',
-                'reminder_times' => 'nullable|array',
-                'frequency_unit' => 'nullable|string|in:minutes,hours,days,weeks,months,years',
-                'frequency_value' => 'nullable|integer|min:1',
-                'reminder_sound' => 'nullable|string|in:continuous,small,none',
-                'reminder_vibration' => 'nullable|boolean',
-                'show_in_drawer' => 'nullable|boolean',
-                'notification_sound' => 'nullable|boolean',
-                'notification_vibration' => 'nullable|boolean',
-                'show_full_screen' => 'nullable|boolean',
-                'custom_sound_path' => 'nullable|string',
-                'due_date' => 'required|date',
-                'status' => 'nullable|integer|in:1,2,3',
-            ]);
+public function store(Request $request)
+{
+    Log::info('Activity store request arrived', $request->all());
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Check error message above',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
+    try {
 
-            // Create activity with all validated data
-            $activity = Activity::create($validator->validated());
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'nullable|exists:users,id',
+            'guest_id' => 'nullable|string',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string',
+            'priority' => 'nullable|in:low,medium,high',
+            'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' =>
+                'file|mimes:jpg,jpeg,png,webp,mp4,mov,mp3,pdf,doc,docx,txt',
+            'reminder_times' => 'nullable|array',
+            'frequency_unit' => 'nullable|string|in:minutes,hours,days,weeks,months,years',
+            'frequency_value' => 'nullable|integer|min:1',
+            'reminder_sound' => 'nullable|string|in:continuous,small,none',
+            'reminder_vibration' => 'nullable|boolean',
+            'show_in_drawer' => 'nullable|boolean',
+            'notification_sound' => 'nullable|boolean',
+            'notification_vibration' => 'nullable|boolean',
+            'show_full_screen' => 'nullable|boolean',
+            'custom_sound_path' => 'nullable|string',
+            'due_date' => 'required|date',
+            'status' => 'nullable|integer|in:1,2,3',
+        ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Activity created successfully',
-                'activity' => $activity
-            ], 201);
-
-        } catch (\Exception $e) {
-            Log::error('Activity store error: ' . $e->getMessage());
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create activity: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Check error message above',
+                'errors' => $validator->errors()
+            ], 422);
         }
-    }
 
+        // Total attachment size validation (10 MB)
+
+        if ($request->hasFile('attachments')) {
+
+            $totalSize = 0;
+
+            foreach ($request->file('attachments') as $file) {
+                $totalSize += $file->getSize();
+            }
+
+            if ($totalSize > (10 * 1024 * 1024)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Total attachment size cannot exceed 10 MB'
+                ], 422);
+            }
+        }
+
+        $data = $validator->validated();
+
+        // Upload thumbnail
+if ($request->hasFile('thumbnail')) {
+
+    $path = $request
+        ->file('thumbnail')
+     ->store('activities/thumbnails', 'public');
+    $data['thumbnail'] = basename($path);
+}
+
+        // Create activity
+
+        $activity = Activity::create($data);
+
+        // Save attachments in attachments table
+
+        if ($request->hasFile('attachments')) {
+
+            foreach ($request->file('attachments') as $file) {
+
+                $path = $file->store(
+                    'activities/attachments',
+                    'public'
+                );
+
+                Attachment::create([
+                    'user_id'     => $activity->user_id,
+                    'activity_id' => $activity->id,
+                      'file_name' => basename($path),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Activity created successfully',
+            'activity' => $activity->load('attachments')
+        ], 201);
+
+    } catch (\Exception $e) {
+
+        Log::error('Activity store error: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create activity: ' . $e->getMessage()
+        ], 500);
+    }
+}
     /**
      * Update an existing activity.
      */

@@ -19,6 +19,8 @@ class Activity extends Model
         'frequency_value',
         'reminder_sound',
         'reminder_vibration',
+         'priority',
+    'thumbnail',
         'show_in_drawer',
         'notification_sound',
         'notification_vibration',
@@ -35,10 +37,15 @@ class Activity extends Model
         'notification_sound' => 'boolean',
         'notification_vibration' => 'boolean',
         'show_full_screen' => 'boolean',
+       
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
+    public function attachments()
+{
+    return $this->hasMany(Attachment::class);
+}
 }
