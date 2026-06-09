@@ -17,58 +17,33 @@ class ActivityController extends Controller
      * Display a listing of activities for a user/guest.
      */
 public function index(Request $request)
-{
-    try {
+    {
+        try {
+            $user_id = $request->query('user_id');
+            $guest_id = $request->query('guest_id');
 
-        $user_id = $request->query('user_id');
-        $guest_id = $request->query('guest_id');
+            if (!$user_id && !$guest_id) {
+                return response()->json(['success' => false, 'message' => 'Missing ID'], 400);
+            }
 
-        if (!$user_id && !$guest_id) {
+            $activities = Activity::query()
+                ->when($user_id, fn($q) => $q->where('user_id', $user_id))
+                ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
+                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END ASC')
+                ->orderByRaw('ABS(DATEDIFF(due_date, CURDATE())) ASC')
+                ->orderByRaw('CASE WHEN due_date < CURDATE() THEN 0 ELSE 1 END ASC')
+                ->orderBy('updated_at', 'desc')
+                ->get();
+
             return response()->json([
-                'success' => false,
-                'message' => 'Missing ID'
-            ], 400);
-        }
-
-        // TODAY DATE
-        $today = now()->toDateString();
-
-        Activity::query()
-            ->whereDate('due_date', '<', $today)
-            ->where('status', '!=', 2)
-            ->update([
-                'status' => 3
+                'success' => true,
+                'activities' => $activities
             ]);
 
-        // FETCH SORTED ACTIVITIES
-        $activities = Activity::query()
-
-            ->when($user_id, fn($q) => $q->where('user_id', $user_id))
-
-            ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
-
-            // SORT BY CLOSEST DATE
-            ->orderByRaw(
-                "ABS(DATEDIFF(due_date, ?)) ASC",
-                [$today]
-            )
-
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'activities' => $activities
-        ]);
-
-    } catch (\Exception $e) {
-
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
-}
-
     /**
      * Store a newly created activity in storage.
      */
