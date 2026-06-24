@@ -34,3 +34,4 @@ Route::post('/activities/{id}/force-delete', [ActivityController::class, 'forceD
 Route::post('/activities/{id}/complete', [ActivityController::class, 'markComplete']);
 
 Route::delete('/attachments/{id}', [ActivityController::class, 'deleteAttachment']);
+Route::post('/attachments/{id}/delete', [ActivityController::class, 'deleteAttachment']);
