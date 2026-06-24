@@ -18,8 +18,9 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('category')->default('General');
-            $table->date('due_date');
-             $table->tinyInteger('status');
+             $table->date('due_date')->nullable();
+            $table->boolean('is_completed')->default(false);
+            $table->timestamp('completed_at')->nullable();
             $table->json('reminder_times')->nullable();
             $table->string('frequency_unit')->default('days');
             $table->integer('frequency_value')->default(1);
@@ -27,8 +28,8 @@ return new class extends Migration
             $table->string('custom_sound_path')->nullable();
             $table->boolean('reminder_vibration')->default(true);
             $table->enum('priority', ['low','medium','high'])
-      ->default('medium');
-      $table->string('thumbnail')->nullable();
+            ->default('medium');
+           $table->string('thumbnail')->nullable();
             $table->boolean('show_in_drawer')->default(true);
             $table->boolean('notification_sound')->default(true);
             $table->boolean('notification_vibration')->default(true);

@@ -20,14 +20,16 @@ class Activity extends Model
         'reminder_sound',
         'reminder_vibration',
          'priority',
-    'thumbnail',
+         'thumbnail',
         'show_in_drawer',
         'notification_sound',
         'notification_vibration',
         'show_full_screen',
         'custom_sound_path',
         'due_date',
-         'status',
+          'is_completed',
+        'completed_at',
+         
     ];
 
     protected $casts = [
@@ -37,6 +39,9 @@ class Activity extends Model
         'notification_sound' => 'boolean',
         'notification_vibration' => 'boolean',
         'show_full_screen' => 'boolean',
+        'is_completed'         => 'boolean',
+        'due_date'             => 'date:Y-m-d',
+        'completed_at'         => 'datetime',
        
     ];
 
@@ -47,5 +52,14 @@ class Activity extends Model
     public function attachments()
 {
     return $this->hasMany(Attachment::class);
+}
+
+protected $appends = ['thumbnail_url'];
+
+public function getThumbnailUrlAttribute()
+{
+    return $this->thumbnail
+        ? asset('storage/thumbnails/' . $this->thumbnail)
+        : null;
 }
 }

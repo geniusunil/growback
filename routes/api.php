@@ -31,4 +31,6 @@ Route::delete('/activities/{id}', [ActivityController::class, 'destroy']);      
 Route::post('/activities/{id}/delete', [ActivityController::class, 'destroy']);   // legacy fallback
 Route::post('/activities/{id}/restore', [ActivityController::class, 'restore']);
 Route::post('/activities/{id}/force-delete', [ActivityController::class, 'forceDelete']);
+Route::post('/activities/{id}/complete', [ActivityController::class, 'markComplete']);
 
+Route::delete('/attachments/{id}', [ActivityController::class, 'deleteAttachment']);

@@ -19,11 +19,14 @@ return new class extends Migration
                 ->constrained('users')
                 ->onDelete('cascade');
 
+                $table->string('guest_id')->nullable();
+
             $table->foreignId('activity_id')
                 ->constrained('activities')
                 ->onDelete('cascade');
 
             $table->string('file_name');
+             $table->unsignedBigInteger('file_size')->nullable();
 
             $table->timestamps();
         });
