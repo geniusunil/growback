@@ -26,6 +26,7 @@ Route::post('/activities/restore-all', [ActivityController::class, 'restoreAll']
 Route::post('/activities/force-all', [ActivityController::class, 'forceDeleteAll']);
 
 
+Route::get('/activities/{id}', [ActivityController::class, 'show']);
 Route::post('/activities/{id}/update', [ActivityController::class, 'update']);
 Route::delete('/activities/{id}', [ActivityController::class, 'destroy']);        // Flutter uses DELETE /activities/$id
 Route::post('/activities/{id}/delete', [ActivityController::class, 'destroy']);   // legacy fallback
