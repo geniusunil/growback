@@ -44,6 +44,21 @@ class ActivityController extends Controller
         }
     }
 
+    public function show($id)
+    {
+        try {
+            $activity = Activity::with('attachments')->find($id);
+
+            if (!$activity) {
+                return response()->json(['success' => false, 'message' => 'Activity not found'], 404);
+            }
+
+            return response()->json(['success' => true, 'activity' => $activity]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     /**
      * Store a newly created activity in storage.
      */
