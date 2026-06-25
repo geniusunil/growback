@@ -78,7 +78,7 @@ class AuthController extends Controller
         $user = User::firstOrCreate(
             ['email' => $request->email],
             [
-                'username' => explode('@', $request->email)[0] . '_' . Str::random(4),
+               'username' => explode('@', $request->email)[0],
                 'password' => Hash::make(Str::random(20)),
             ]
         );

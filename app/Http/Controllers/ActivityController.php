@@ -174,8 +174,6 @@ class ActivityController extends Controller
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
                 'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,mp4,mov,mp3,pdf,doc,docx,txt',
-                'deleted_attachment_ids' => 'nullable|array',
-                'deleted_attachment_ids.*' => 'integer|exists:attachments,id',
                 'reminder_times' => 'nullable|array',
                 'frequency_unit' => 'nullable|string|in:none,minutes,hours,days,weeks,months,years',
                 'frequency_value' => 'nullable|integer|min:0',
@@ -218,6 +216,20 @@ class ActivityController extends Controller
 
             $data = $validator->validated();
 
+            if ($request->boolean('remove_thumbnail')) {
+
+                if (
+                    $activity->thumbnail &&
+                    Storage::disk('public')
+                    ->exists('thumbnails/' . $activity->thumbnail)
+                ) {
+                    Storage::disk('public')
+                        ->delete('thumbnails/' . $activity->thumbnail);
+                }
+
+                $data['thumbnail'] = null;
+            }
+
             // Upload thumbnail
             if ($request->hasFile('thumbnail')) {
 
@@ -236,26 +248,6 @@ class ActivityController extends Controller
                 $data['thumbnail'] = basename($path);
             }
 
-            // if ($request->filled('deleted_attachment_ids')) {
-
-            //     $attachments = Attachment::whereIn(
-            //         'id',
-            //         $request->deleted_attachment_ids
-            //     )->where('activity_id', $activity->id)->get();
-
-            //     foreach ($attachments as $attachment) {
-
-            //         if (
-            //             Storage::disk('public')
-            //             ->exists('attachments/' . $attachment->file_name)
-            //         ) {
-            //             Storage::disk('public')
-            //                 ->delete('attachments/' . $attachment->file_name);
-            //         }
-
-            //         $attachment->delete();
-            //     }
-            // }
 
             // Update activity
             $activity->update($data);
@@ -294,43 +286,42 @@ class ActivityController extends Controller
     }
 
     public function deleteAttachment($id)
-{
-    try {
+    {
+        try {
 
-        $attachment = Attachment::find($id);
+            $attachment = Attachment::find($id);
 
-        if (!$attachment) {
+            if (!$attachment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Attachment not found'
+                ], 404);
+            }
+
+            // Delete physical file
+            if (
+                Storage::disk('public')
+                ->exists('attachments/' . $attachment->file_name)
+            ) {
+                Storage::disk('public')
+                    ->delete('attachments/' . $attachment->file_name);
+            }
+
+            // Delete database record
+            $attachment->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Attachment deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+
             return response()->json([
                 'success' => false,
-                'message' => 'Attachment not found'
-            ], 404);
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        // Delete physical file
-        if (
-            Storage::disk('public')
-                ->exists('attachments/' . $attachment->file_name)
-        ) {
-            Storage::disk('public')
-                ->delete('attachments/' . $attachment->file_name);
-        }
-
-        // Delete database record
-        $attachment->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Attachment deleted successfully'
-        ]);
-
-    } catch (\Exception $e) {
-
-        return response()->json([
-            'success' => false,
-            'message' => $e->getMessage()
-        ], 500);
     }
-}
     /**
      * Mark an activity as permanently completed (stops alarms).
      */
