@@ -26,6 +26,7 @@ class TaskController extends Controller
 
         if($conflict){
             return response()->json([
+                
                 'status' => false,
                 'message' => 'This time slot is already booked'
             ]);

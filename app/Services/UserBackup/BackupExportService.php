@@ -88,28 +88,26 @@ class BackupExportService
         | Guest Activities
         |--------------------------------------------------------------------------
         */
+if ($users === 'all' || $guests === 'all') {
 
-        if ($guests === 'all') {
+    $guestActivities = Activity::with('attachments')
+        ->whereNotNull('guest_id')
+        ->get()
+        ->groupBy('guest_id');
 
-            $guestActivities = Activity::with('attachments')
-                ->whereNotNull('guest_id')
-                ->get()
-                ->groupBy('guest_id');
+} elseif (!empty($guests)) {
 
-        } elseif (!empty($guests)) {
+    $guestIds = array_map('trim', explode(',', $guests));
 
-            $guestIds = array_map('trim', explode(',', $guests));
+    $guestActivities = Activity::with('attachments')
+        ->whereIn('guest_id', $guestIds)
+        ->get()
+        ->groupBy('guest_id');
 
-            $guestActivities = Activity::with('attachments')
-                ->whereIn('guest_id', $guestIds)
-                ->get()
-                ->groupBy('guest_id');
+} else {
 
-        } else {
-
-            $guestActivities = collect();
-        }
-
+    $guestActivities = collect();
+}
         foreach ($guestActivities as $guestId => $activities) {
 
             $backup['guests'][] = [
