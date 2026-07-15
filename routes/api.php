@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoogleLoginController;
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\Api\BackupController;
 
 Route::get('check-connection', function (){ 
     return response()->json(['message' => 'API is working']);
@@ -36,3 +37,9 @@ Route::post('/activities/{id}/complete', [ActivityController::class, 'markComple
 
 Route::delete('/attachments/{id}', [ActivityController::class, 'deleteAttachment']);
 Route::post('/attachments/{id}/delete', [ActivityController::class, 'deleteAttachment']);
+
+
+
+
+Route::post('/backup/export', [BackupController::class, 'export']);
+Route::post('/backup/import', [BackupController::class, 'import']);
