@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Attachment;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
+use App\Helpers\DurationHelper;
 
 class ActivityController extends Controller
 {
@@ -29,16 +31,61 @@ class ActivityController extends Controller
             $activities = Activity::with('attachments')
                 ->when($user_id, fn($q) => $q->where('user_id', $user_id))
                 ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
-                ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END ASC')
-                ->orderByRaw('ABS(DATEDIFF(due_date, CURDATE())) ASC')
-                ->orderByRaw('CASE WHEN due_date < CURDATE() THEN 0 ELSE 1 END ASC')
-                ->orderBy('updated_at', 'desc')
+                // ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END ASC')
+                // ->orderByRaw('ABS(DATEDIFF(due_date, CURDATE())) ASC')
+                // ->orderByRaw('CASE WHEN due_date < CURDATE() THEN 0 ELSE 1 END ASC')
+                // ->orderBy('updated_at', 'desc')
                 ->get();
 
-            return response()->json([
-                'success' => true,
-                'activities' => $activities
-            ]);
+        $activities = $activities->sortBy(function ($activity) {
+
+    // Due Time
+    $dueTime = $activity->due_date
+        ? Carbon::parse($activity->due_date)
+        : Carbon::parse($activity->created_at)->addDays(8);
+
+    // Duration ko hours me convert karo
+    $durationHours = DurationHelper::convertToHours(
+        $activity->duration_value,
+        $activity->duration_unit
+    );
+$activity->duration_hours = $durationHours;
+    // Remaining hours
+    $remainingHours = now()->diffInHours($dueTime, false);
+
+    // Urgency
+    $urgency = ($remainingHours - $durationHours) * $activity->priority;
+
+    return $urgency;
+
+})->values();
+
+
+// 👇 Ye debugging ke liye add karo
+$activities->transform(function ($activity) {
+
+    $dueTime = $activity->due_date
+        ? Carbon::parse($activity->due_date)
+        : Carbon::parse($activity->created_at)->addDays(8);
+
+    $durationHours = DurationHelper::convertToHours(
+        $activity->duration_value,
+        $activity->duration_unit
+    );
+
+    $remainingHours = now()->diffInHours($dueTime, false);
+
+    $activity->duration_hours = $durationHours;
+    $activity->remaining_hours = $remainingHours;
+    $activity->urgency = ($remainingHours - $durationHours) * $activity->priority;
+
+    return $activity;
+});
+
+return response()->json([
+    'success' => true,
+    'activities' => $activities
+]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
@@ -74,7 +121,7 @@ class ActivityController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'category' => 'nullable|string',
-                'priority' => 'nullable|in:low,medium,high',
+                'priority' => 'required|integer|between:1,3',
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
                 'attachments.*' =>
@@ -89,7 +136,11 @@ class ActivityController extends Controller
                 'notification_vibration' => 'nullable|boolean',
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
-                'due_date' => 'nullable|date',
+                'duration_value' => 'nullable|numeric|min:0',
+
+                'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months,years',
+
+                'due_date' => 'nullable|date'
 
             ]);
 
@@ -185,7 +236,7 @@ class ActivityController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'category' => 'nullable|string',
-                'priority' => 'nullable|in:low,medium,high',
+                'priority' => 'required|integer|between:1,3',
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
                 'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,mp4,mov,mp3,pdf,doc,docx,txt',
@@ -199,6 +250,9 @@ class ActivityController extends Controller
                 'notification_vibration' => 'nullable|boolean',
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
+                'duration_value' => 'nullable|numeric|min:0',
+                'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months,years',
+
                 'due_date' => 'nullable|date',
                 'is_completed' => 'nullable|boolean',
                 'completed_at' => 'nullable|date',

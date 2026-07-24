@@ -18,7 +18,9 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('category')->default('General');
-             $table->date('due_date')->nullable();
+            $table->unsignedInteger('duration_value')->nullable();
+            $table->string('duration_unit')->nullable();
+           $table->dateTime('due_date')->nullable();
             $table->boolean('is_completed')->default(false);
             $table->timestamp('completed_at')->nullable();
             $table->json('reminder_times')->nullable();
@@ -27,9 +29,8 @@ return new class extends Migration
             $table->string('reminder_sound')->default('small');
             $table->string('custom_sound_path')->nullable();
             $table->boolean('reminder_vibration')->default(true);
-            $table->enum('priority', ['low','medium','high'])
-            ->default('medium');
-           $table->string('thumbnail')->nullable();
+           $table->unsignedTinyInteger('priority')->default(2);
+            $table->string('thumbnail')->nullable();
             $table->boolean('show_in_drawer')->default(true);
             $table->boolean('notification_sound')->default(true);
             $table->boolean('notification_vibration')->default(true);
