@@ -29,7 +29,7 @@ return new class extends Migration
             $table->string('reminder_sound')->default('small');
             $table->string('custom_sound_path')->nullable();
             $table->boolean('reminder_vibration')->default(true);
-           $table->unsignedTinyInteger('priority')->default(2);
+          $table->string('priority')->default('medium');
             $table->string('thumbnail')->nullable();
             $table->boolean('show_in_drawer')->default(true);
             $table->boolean('notification_sound')->default(true);

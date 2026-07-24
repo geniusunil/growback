@@ -50,11 +50,18 @@ class ActivityController extends Controller
                     $activity->duration_unit
                 );
                 $activity->duration_hours = $durationHours;
+
+                $priorityValue = match (strtolower($activity->priority)) {
+                    'high' => 1,
+                    'medium' => 2,
+                    'low' => 3,
+                    default => 2,
+                };
                 // Remaining hours
                 $remainingHours = now()->diffInHours($dueTime, false);
 
                 // Urgency
-                $urgency = ($remainingHours - $durationHours) * $activity->priority;
+                $urgency = ($remainingHours - $durationHours) * $priorityValue;
 
                 return $urgency;
             })->values();
@@ -76,7 +83,14 @@ class ActivityController extends Controller
 
                 $activity->duration_hours = $durationHours;
                 $activity->remaining_hours = $remainingHours;
-                $activity->urgency = ($remainingHours - $durationHours) * $activity->priority;
+                $priorityValue = match (strtolower($activity->priority)) {
+                    'high' => 1,
+                    'medium' => 2,
+                    'low' => 3,
+                    default => 2,
+                };
+
+                $activity->urgency = ($remainingHours - $durationHours) * $priorityValue;
 
                 return $activity;
             });
@@ -171,13 +185,6 @@ class ActivityController extends Controller
 
             $data = $validator->validated();
 
-            $priorityMap = [
-                'high'   => 1,
-                'medium' => 2,
-                'low'    => 3,
-            ];
-
-            $data['priority'] = $priorityMap[strtolower($data['priority'])];
 
             // Upload thumbnail
             if ($request->hasFile('thumbnail')) {
@@ -292,13 +299,6 @@ class ActivityController extends Controller
 
             $data = $validator->validated();
 
-            $priorityMap = [
-                'high'   => 1,
-                'medium' => 2,
-                'low'    => 3,
-            ];
-
-            $data['priority'] = $priorityMap[strtolower($data['priority'])];
 
             if ($request->boolean('remove_thumbnail')) {
 
