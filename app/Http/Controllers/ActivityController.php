@@ -37,55 +37,54 @@ class ActivityController extends Controller
                 // ->orderBy('updated_at', 'desc')
                 ->get();
 
-        $activities = $activities->sortBy(function ($activity) {
+            $activities = $activities->sortBy(function ($activity) {
 
-    // Due Time
-    $dueTime = $activity->due_date
-        ? Carbon::parse($activity->due_date)
-        : Carbon::parse($activity->created_at)->addDays(8);
+                // Due Time
+                $dueTime = $activity->due_date
+                    ? Carbon::parse($activity->due_date)
+                    : Carbon::parse($activity->created_at)->addDays(8);
 
-    // Duration ko hours me convert karo
-    $durationHours = DurationHelper::convertToHours(
-        $activity->duration_value,
-        $activity->duration_unit
-    );
-$activity->duration_hours = $durationHours;
-    // Remaining hours
-    $remainingHours = now()->diffInHours($dueTime, false);
+                // Duration ko hours me convert karo
+                $durationHours = DurationHelper::convertToHours(
+                    $activity->duration_value,
+                    $activity->duration_unit
+                );
+                $activity->duration_hours = $durationHours;
+                // Remaining hours
+                $remainingHours = now()->diffInHours($dueTime, false);
 
-    // Urgency
-    $urgency = ($remainingHours - $durationHours) * $activity->priority;
+                // Urgency
+                $urgency = ($remainingHours - $durationHours) * $activity->priority;
 
-    return $urgency;
+                return $urgency;
+            })->values();
 
-})->values();
 
+            // 👇 Ye debugging ke liye add karo
+            $activities->transform(function ($activity) {
 
-// 👇 Ye debugging ke liye add karo
-$activities->transform(function ($activity) {
+                $dueTime = $activity->due_date
+                    ? Carbon::parse($activity->due_date)
+                    : Carbon::parse($activity->created_at)->addDays(8);
 
-    $dueTime = $activity->due_date
-        ? Carbon::parse($activity->due_date)
-        : Carbon::parse($activity->created_at)->addDays(8);
+                $durationHours = DurationHelper::convertToHours(
+                    $activity->duration_value,
+                    $activity->duration_unit
+                );
 
-    $durationHours = DurationHelper::convertToHours(
-        $activity->duration_value,
-        $activity->duration_unit
-    );
+                $remainingHours = now()->diffInHours($dueTime, false);
 
-    $remainingHours = now()->diffInHours($dueTime, false);
+                $activity->duration_hours = $durationHours;
+                $activity->remaining_hours = $remainingHours;
+                $activity->urgency = ($remainingHours - $durationHours) * $activity->priority;
 
-    $activity->duration_hours = $durationHours;
-    $activity->remaining_hours = $remainingHours;
-    $activity->urgency = ($remainingHours - $durationHours) * $activity->priority;
+                return $activity;
+            });
 
-    return $activity;
-});
-
-return response()->json([
-    'success' => true,
-    'activities' => $activities
-]);
+            return response()->json([
+                'success' => true,
+                'activities' => $activities
+            ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
@@ -121,7 +120,7 @@ return response()->json([
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'category' => 'nullable|string',
-                'priority' => 'required|integer|between:1,3',
+                'priority' => 'required|string|in:high,medium,low',
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
                 'attachments.*' =>
@@ -171,6 +170,14 @@ return response()->json([
             }
 
             $data = $validator->validated();
+
+            $priorityMap = [
+                'high'   => 1,
+                'medium' => 2,
+                'low'    => 3,
+            ];
+
+            $data['priority'] = $priorityMap[strtolower($data['priority'])];
 
             // Upload thumbnail
             if ($request->hasFile('thumbnail')) {
@@ -236,7 +243,7 @@ return response()->json([
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'category' => 'nullable|string',
-                'priority' => 'required|integer|between:1,3',
+                'priority' => 'required|string|in:high,medium,low',
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
                 'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,mp4,mov,mp3,pdf,doc,docx,txt',
@@ -284,6 +291,14 @@ return response()->json([
             }
 
             $data = $validator->validated();
+
+            $priorityMap = [
+                'high'   => 1,
+                'medium' => 2,
+                'low'    => 3,
+            ];
+
+            $data['priority'] = $priorityMap[strtolower($data['priority'])];
 
             if ($request->boolean('remove_thumbnail')) {
 
