@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\Attachment;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
-use App\Helpers\DurationHelper;
+
 
 class ActivityController extends Controller
 {
@@ -45,10 +45,8 @@ class ActivityController extends Controller
                     : Carbon::parse($activity->created_at)->addDays(8);
 
                 // Duration ko hours me convert karo
-                $durationHours = DurationHelper::convertToHours(
-                    $activity->duration_value,
-                    $activity->duration_unit
-                );
+            $durationHours = $activity->duration_value ?? 0;
+            
                 $activity->duration_hours = $durationHours;
 
                 $priorityValue = match (strtolower($activity->priority)) {
@@ -66,34 +64,6 @@ class ActivityController extends Controller
                 return $urgency;
             })->values();
 
-
-            // 👇 Ye debugging ke liye add karo
-            $activities->transform(function ($activity) {
-
-                $dueTime = $activity->due_date
-                    ? Carbon::parse($activity->due_date)
-                    : Carbon::parse($activity->created_at)->addDays(8);
-
-                $durationHours = DurationHelper::convertToHours(
-                    $activity->duration_value,
-                    $activity->duration_unit
-                );
-
-                $remainingHours = now()->diffInHours($dueTime, false);
-
-                $activity->duration_hours = $durationHours;
-                $activity->remaining_hours = $remainingHours;
-                $priorityValue = match (strtolower($activity->priority)) {
-                    'high' => 1,
-                    'medium' => 2,
-                    'low' => 3,
-                    default => 2,
-                };
-
-                $activity->urgency = ($remainingHours - $durationHours) * $priorityValue;
-
-                return $activity;
-            });
 
             return response()->json([
                 'success' => true,
@@ -150,9 +120,7 @@ class ActivityController extends Controller
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
                 'duration_value' => 'nullable|numeric|min:0',
-
                 'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months,years',
-
                 'due_date' => 'nullable|date'
 
             ]);
@@ -184,6 +152,38 @@ class ActivityController extends Controller
             }
 
             $data = $validator->validated();
+
+            if (empty($data['duration_unit'])) {
+                $data['duration_value'] = null;
+                $data['duration_unit'] = null;
+            } else {
+                switch (strtolower($data['duration_unit'])) {
+                    case 'minutes':
+                        $data['duration_value'] = round($data['duration_value'] / 60, 2);
+                        break;
+
+                    case 'hours':
+                        break;
+
+                    case 'days':
+                        $data['duration_value'] *= 24;
+                        break;
+
+                    case 'weeks':
+                        $data['duration_value'] *= 24 * 7;
+                        break;
+
+                    case 'months':
+                        $data['duration_value'] *= 24 * 30;
+                        break;
+
+                    case 'years':
+                        $data['duration_value'] *= 24 * 365;
+                        break;
+                }
+
+                $data['duration_unit'] = 'hours';
+            }
 
 
             // Upload thumbnail
@@ -297,8 +297,40 @@ class ActivityController extends Controller
                 }
             }
 
+           
             $data = $validator->validated();
 
+            if (empty($data['duration_unit'])) {
+                $data['duration_value'] = null;
+                $data['duration_unit'] = null;
+            } else {
+                switch (strtolower($data['duration_unit'])) {
+                    case 'minutes':
+                        $data['duration_value'] = round($data['duration_value'] / 60, 2);
+                        break;
+
+                    case 'hours':
+                        break;
+
+                    case 'days':
+                        $data['duration_value'] *= 24;
+                        break;
+
+                    case 'weeks':
+                        $data['duration_value'] *= 24 * 7;
+                        break;
+
+                    case 'months':
+                        $data['duration_value'] *= 24 * 30;
+                        break;
+
+                    case 'years':
+                        $data['duration_value'] *= 24 * 365;
+                        break;
+                }
+
+                $data['duration_unit'] = 'hours';
+            }
 
             if ($request->boolean('remove_thumbnail')) {
 

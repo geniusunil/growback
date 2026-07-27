@@ -27,7 +27,7 @@ class AuthController extends Controller
             ],
         ]);
 
-        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+       $otp = random_int(100000, 999999);
 
         OtpVerification::updateOrCreate(
             ['email' => $request->email],
@@ -95,4 +95,5 @@ class AuthController extends Controller
             'user'    => $user,
         ], 200);
     }
+    
 }

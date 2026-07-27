@@ -18,9 +18,9 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->string('category')->default('General');
-            $table->unsignedInteger('duration_value')->nullable();
-            $table->string('duration_unit')->nullable();
-           $table->dateTime('due_date')->nullable();
+          $table->decimal('duration_value', 10, 2)->nullable();
+$table->string('duration_unit')->nullable();
+           $table->dateTime('due_date')->nullable(); 
             $table->boolean('is_completed')->default(false);
             $table->timestamp('completed_at')->nullable();
             $table->json('reminder_times')->nullable();
