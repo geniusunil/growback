@@ -222,13 +222,15 @@ class ActivityController extends Controller
 
                 foreach ($request->file('attachments') as $file) {
 
-                    $path = $file->store('attachments', 'public');
+                    $fileName = $file->getClientOriginalName();
+
+                    $file->storeAs('attachments', $fileName, 'public');
 
                     Attachment::create([
                         'user_id' => $activity->user_id,
-                        'guest_id'    => $activity->guest_id,
+                        'guest_id' => $activity->guest_id,
                         'activity_id' => $activity->id,
-                        'file_name' => basename($path),
+                        'file_name' => $fileName,
                         'file_size' => $file->getSize(),
                     ]);
                 }
@@ -408,13 +410,15 @@ class ActivityController extends Controller
 
                 foreach ($request->file('attachments') as $file) {
 
-                    $path = $file->store('attachments', 'public');
+                    $fileName = $file->getClientOriginalName();
+
+                    $file->storeAs('attachments', $fileName, 'public');
 
                     Attachment::create([
                         'user_id' => $activity->user_id,
-                        'guest_id'    => $activity->guest_id,
+                        'guest_id' => $activity->guest_id,
                         'activity_id' => $activity->id,
-                        'file_name'   => basename($path),
+                        'file_name' => $fileName,
                         'file_size' => $file->getSize(),
                     ]);
                 }
