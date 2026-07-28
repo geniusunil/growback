@@ -46,6 +46,7 @@ class Activity extends Model
         'is_completed'         => 'boolean',
        'due_date' => 'datetime',
         'completed_at'         => 'datetime',
+        'duration_value' => 'float',
 
     ];
 

@@ -120,7 +120,7 @@ class ActivityController extends Controller
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
                 'duration_value' => 'nullable|numeric|min:0',
-                'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months,years',
+               'duration_unit' => 'nullable|in:none,minutes,hours,days,weeks,months,years',
                 'due_date' => 'nullable|date'
 
             ]);
@@ -153,10 +153,14 @@ class ActivityController extends Controller
 
             $data = $validator->validated();
 
-            if (empty($data['duration_unit'])) {
-                $data['duration_value'] = null;
-                $data['duration_unit'] = null;
-            } else {
+           if (
+    !isset($data['duration_unit']) ||
+    $data['duration_unit'] === null ||
+    strtolower($data['duration_unit']) === 'none'
+) {
+    $data['duration_value'] = null;
+    $data['duration_unit'] = null;
+} else {
                 switch (strtolower($data['duration_unit'])) {
                     case 'minutes':
                         $data['duration_value'] = round($data['duration_value'] / 60, 2);
@@ -265,8 +269,7 @@ class ActivityController extends Controller
                 'show_full_screen' => 'nullable|boolean',
                 'custom_sound_path' => 'nullable|string',
                 'duration_value' => 'nullable|numeric|min:0',
-                'duration_unit' => 'nullable|in:minutes,hours,days,weeks,months,years',
-
+                'duration_unit' => 'nullable|in:none,minutes,hours,days,weeks,months,years',
                 'due_date' => 'nullable|date',
                 'is_completed' => 'nullable|boolean',
                 'completed_at' => 'nullable|date',
@@ -298,40 +301,44 @@ class ActivityController extends Controller
             }
 
            
-            $data = $validator->validated();
+$data = $validator->validated();
 
-            if (empty($data['duration_unit'])) {
-                $data['duration_value'] = null;
-                $data['duration_unit'] = null;
-            } else {
-                switch (strtolower($data['duration_unit'])) {
-                    case 'minutes':
-                        $data['duration_value'] = round($data['duration_value'] / 60, 2);
-                        break;
+if (
+    !isset($data['duration_unit']) ||
+    $data['duration_unit'] === null ||
+    strtolower($data['duration_unit']) === 'none'
+) {
+    $data['duration_value'] = null;
+    $data['duration_unit'] = null;
+} else {
 
-                    case 'hours':
-                        break;
+    switch (strtolower($data['duration_unit'])) {
+        case 'minutes':
+            $data['duration_value'] = round($data['duration_value'] / 60, 2);
+            break;
 
-                    case 'days':
-                        $data['duration_value'] *= 24;
-                        break;
+        case 'hours':
+            break;
 
-                    case 'weeks':
-                        $data['duration_value'] *= 24 * 7;
-                        break;
+        case 'days':
+            $data['duration_value'] *= 24;
+            break;
 
-                    case 'months':
-                        $data['duration_value'] *= 24 * 30;
-                        break;
+        case 'weeks':
+            $data['duration_value'] *= 24 * 7;
+            break;
 
-                    case 'years':
-                        $data['duration_value'] *= 24 * 365;
-                        break;
-                }
+        case 'months':
+            $data['duration_value'] *= 24 * 30;
+            break;
 
-                $data['duration_unit'] = 'hours';
-            }
+        case 'years':
+            $data['duration_value'] *= 24 * 365;
+            break;
+    }
 
+    $data['duration_unit'] = 'hours';
+}
             if ($request->boolean('remove_thumbnail')) {
 
                 if (
