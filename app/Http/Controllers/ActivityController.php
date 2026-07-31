@@ -31,40 +31,38 @@ class ActivityController extends Controller
             $activities = Activity::with('attachments')
                 ->when($user_id, fn($q) => $q->where('user_id', $user_id))
                 ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
-                // ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END ASC')
-                // ->orderByRaw('ABS(DATEDIFF(due_date, CURDATE())) ASC')
-                // ->orderByRaw('CASE WHEN due_date < CURDATE() THEN 0 ELSE 1 END ASC')
-                // ->orderBy('updated_at', 'desc')
                 ->get();
 
-            $activities = $activities->sortBy(function ($activity) {
+            $activities = $activities->map(function ($activity) {
 
-                // Due Time
+                // Due time if not mentioned = created_at + 8 days
                 $dueTime = $activity->due_date
                     ? Carbon::parse($activity->due_date)
                     : Carbon::parse($activity->created_at)->addDays(8);
 
-                // Duration ko hours me convert karo
-                $durationHours = $activity->duration_value ?? 0;
+                // Remaining time in hours = Due time - Current time
+                $remainingHours = round(now()->diffInHours($dueTime, false, true), 2);
 
-                $activity->duration_hours = $durationHours;
+                // Duration if not mentioned = 1 hour
+                $duration = round((float) ($activity->duration_value ?? 1), 2);
 
-                $priorityValue = match (strtolower($activity->priority)) {
-                    'high' => 1,
+                // Priority weight
+                $priorityValue = match (strtolower($activity->priority ?? 'medium')) {
+                    'high'   => 1,
                     'medium' => 2,
-                    'low' => 3,
-                    default => 2,
+                    'low'    => 3,
+                    default  => 2,
                 };
-                // Remaining hours
-                $remainingHours = now()->diffInHours($dueTime, false);
 
-                // Urgency
-                $urgency = ($remainingHours - $durationHours) * $priorityValue;
+                // Urgency = (Due time - Current time - Duration) × Priority
+                $activity->urgency = round(($remainingHours - $duration) * $priorityValue, 2);
 
-                return $urgency;
-            })->values();
+                $activity->remaining_hours = $remainingHours;
+                $activity->duration_value = $duration;
 
-
+                return $activity;
+            })->sortBy('urgency')->values();
+            
             return response()->json([
                 'success' => true,
                 'activities' => $activities
@@ -107,7 +105,34 @@ class ActivityController extends Controller
                 'priority' => 'required|string|in:high,medium,low',
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
-                'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,mp4,mov,mp3,wav,pdf,doc,docx,txt',
+                'attachments.*' => [
+                    'file',
+                    function ($attribute, $value, $fail) {
+
+                        $allowed = [
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp',
+                            'mp4',
+                            'mov',
+                            'mp3',
+                            'wav',
+                            'aac',
+                            'opus',
+                            'pdf',
+                            'doc',
+                            'docx',
+                            'txt'
+                        ];
+
+                        $ext = strtolower($value->getClientOriginalExtension());
+
+                        if (!in_array($ext, $allowed)) {
+                            $fail('Invalid file format.');
+                        }
+                    }
+                ],
                 'reminder_times' => 'nullable|array',
                 'frequency_unit' => 'nullable|string|in:none,minutes,hours,days,weeks,months,years',
                 'frequency_value' => 'nullable|integer|min:0',
@@ -130,6 +155,8 @@ class ActivityController extends Controller
 
                 if ($request->hasFile('attachments')) {
                     foreach ($request->file('attachments') as $index => $file) {
+
+
                         if ($errors->has("attachments.$index")) {
                             return response()->json([
                                 'success' => false,
@@ -166,42 +193,6 @@ class ActivityController extends Controller
             }
 
             $data = $validator->validated();
-
-            if (
-                !isset($data['duration_unit']) ||
-                $data['duration_unit'] === null ||
-                strtolower($data['duration_unit']) === 'none'
-            ) {
-                $data['duration_value'] = null;
-                $data['duration_unit'] = null;
-            } else {
-                switch (strtolower($data['duration_unit'])) {
-                    case 'minutes':
-                        $data['duration_value'] = round($data['duration_value'] / 60, 2);
-                        break;
-
-                    case 'hours':
-                        break;
-
-                    case 'days':
-                        $data['duration_value'] *= 24;
-                        break;
-
-                    case 'weeks':
-                        $data['duration_value'] *= 24 * 7;
-                        break;
-
-                    case 'months':
-                        $data['duration_value'] *= 24 * 30;
-                        break;
-
-                    case 'years':
-                        $data['duration_value'] *= 24 * 365;
-                        break;
-                }
-
-                $data['duration_unit'] = 'hours';
-            }
 
 
             // Upload thumbnail
@@ -273,7 +264,34 @@ class ActivityController extends Controller
                 'priority' => 'required|string|in:high,medium,low',
                 'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
                 'attachments' => 'nullable|array|max:5',
-                'attachments.*' => 'file|mimes:jpg,jpeg,png,webp,mp4,mov,mp3,wav,pdf,doc,docx,txt',
+                'attachments.*' => [
+                    'file',
+                    function ($attribute, $value, $fail) {
+
+                        $allowed = [
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp',
+                            'mp4',
+                            'mov',
+                            'mp3',
+                            'wav',
+                            'aac',
+                            'opus',
+                            'pdf',
+                            'doc',
+                            'docx',
+                            'txt'
+                        ];
+
+                        $ext = strtolower($value->getClientOriginalExtension());
+
+                        if (!in_array($ext, $allowed)) {
+                            $fail('Invalid file format.');
+                        }
+                    }
+                ],
                 'reminder_times' => 'nullable|array',
                 'frequency_unit' => 'nullable|string|in:none,minutes,hours,days,weeks,months,years',
                 'frequency_value' => 'nullable|integer|min:0',
@@ -333,42 +351,7 @@ class ActivityController extends Controller
 
             $data = $validator->validated();
 
-            if (
-                !isset($data['duration_unit']) ||
-                $data['duration_unit'] === null ||
-                strtolower($data['duration_unit']) === 'none'
-            ) {
-                $data['duration_value'] = null;
-                $data['duration_unit'] = null;
-            } else {
-
-                switch (strtolower($data['duration_unit'])) {
-                    case 'minutes':
-                        $data['duration_value'] = round($data['duration_value'] / 60, 2);
-                        break;
-
-                    case 'hours':
-                        break;
-
-                    case 'days':
-                        $data['duration_value'] *= 24;
-                        break;
-
-                    case 'weeks':
-                        $data['duration_value'] *= 24 * 7;
-                        break;
-
-                    case 'months':
-                        $data['duration_value'] *= 24 * 30;
-                        break;
-
-                    case 'years':
-                        $data['duration_value'] *= 24 * 365;
-                        break;
-                }
-
-                $data['duration_unit'] = 'hours';
-            }
+    
             if ($request->boolean('remove_thumbnail')) {
 
                 if (
