@@ -43,8 +43,15 @@ class ActivityController extends Controller
                 // Remaining time in hours = Due time - Current time
                 $remainingHours = round(now()->diffInHours($dueTime, false, true), 2);
 
-                // Duration if not mentioned = 1 hour
-                $duration = round((float) ($activity->duration_value ?? 1), 2);
+        
+               $duration = (
+    empty($activity->duration_value) ||
+    strtolower($activity->duration_unit ?? '') === 'none'
+)
+    ? 1
+    : (float) $activity->duration_value;
+
+$duration = round($duration, 2);
 
                 // Priority weight
                 $priorityValue = match (strtolower($activity->priority ?? 'medium')) {
@@ -58,7 +65,7 @@ class ActivityController extends Controller
                 $activity->urgency = round(($remainingHours - $duration) * $priorityValue, 2);
 
                 $activity->remaining_hours = $remainingHours;
-                $activity->duration_value = $duration;
+            
 
                 return $activity;
             })->sortBy('urgency')->values();
@@ -192,7 +199,7 @@ class ActivityController extends Controller
                 }
             }
 
-            $data = $validator->validated();
+        $data = $validator->validated();
 
 
             // Upload thumbnail
@@ -349,6 +356,8 @@ class ActivityController extends Controller
             }
 
 
+          
+            
             $data = $validator->validated();
 
     
