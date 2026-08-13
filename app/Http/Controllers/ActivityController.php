@@ -43,15 +43,15 @@ class ActivityController extends Controller
                 // Remaining time in hours = Due time - Current time
                 $remainingHours = round(now()->diffInHours($dueTime, false, true), 2);
 
-        
-               $duration = (
-    empty($activity->duration_value) ||
-    strtolower($activity->duration_unit ?? '') === 'none'
-)
-    ? 1
-    : (float) $activity->duration_value;
 
-$duration = round($duration, 2);
+                $duration = (
+                    empty($activity->duration_value) ||
+                    strtolower($activity->duration_unit ?? '') === 'none'
+                )
+                    ? 1
+                    : (float) $activity->duration_value;
+
+                $duration = round($duration, 2);
 
                 // Priority weight
                 $priorityValue = match (strtolower($activity->priority ?? 'medium')) {
@@ -61,15 +61,28 @@ $duration = round($duration, 2);
                     default  => 2,
                 };
 
-                // Urgency = (Due time - Current time - Duration) × Priority
-                $activity->urgency = round(($remainingHours - $duration) * $priorityValue, 2);
+                // Calculate time available after considering duration
+                $timeDifference = round($remainingHours - $duration, 2);
+
+                // If task is already overdue after considering duration,
+                // reverse the priority
+                $adjustedPriority = $priorityValue;
+
+                if ($timeDifference < 0) {
+                    $adjustedPriority = 4 - $priorityValue;
+                }
+
+                // Final urgency
+                $activity->urgency = round(
+                    $timeDifference * $adjustedPriority,
+                    2
+                );
 
                 $activity->remaining_hours = $remainingHours;
-            
 
                 return $activity;
             })->sortBy('urgency')->values();
-            
+
             return response()->json([
                 'success' => true,
                 'activities' => $activities
@@ -78,6 +91,149 @@ $duration = round($duration, 2);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+
+// public function index(Request $request)
+// {
+//     try {
+//         $user_id = $request->query('user_id');
+//         $guest_id = $request->query('guest_id');
+
+//         if (!$user_id && !$guest_id) {
+//             return response()->json([
+//                 'success' => false,
+//                 'message' => 'Missing ID'
+//             ], 400);
+//         }
+
+//         $activities = Activity::with('attachments')
+//             ->when($user_id, fn($q) => $q->where('user_id', $user_id))
+//             ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
+//             ->get();
+
+//         $activities = $activities->map(function ($activity) {
+
+//             /*
+//              * Due time:
+//              * If due date is not provided,
+//              * use created_at + 8 days.
+//              */
+//             $dueTime = !empty($activity->due_date)
+//                 ? Carbon::parse($activity->due_date)
+//                 : Carbon::parse($activity->created_at)->addDays(8);
+
+//             /*
+//              * Remaining time in hours:
+//              * Due time - Current time
+//              */
+//             $remainingHours = now()->diffInHours($dueTime, false);
+
+//             /*
+//              * Duration:
+//              * Default = 1 hour if duration is empty or none.
+//              */
+//             if (
+//                 empty($activity->duration_value) ||
+//                 strtolower($activity->duration_unit ?? '') === 'none'
+//             ) {
+//                 $durationHours = 1;
+//             } else {
+//                 $durationValue = (float) $activity->duration_value;
+//                 $durationUnit = strtolower($activity->duration_unit ?? 'hour');
+
+//                 switch ($durationUnit) {
+//                     case 'minute':
+//                     case 'minutes':
+//                         $durationHours = $durationValue / 60;
+//                         break;
+
+//                     case 'day':
+//                     case 'days':
+//                         $durationHours = $durationValue * 24;
+//                         break;
+
+//                     case 'week':
+//                     case 'weeks':
+//                         $durationHours = $durationValue * 24 * 7;
+//                         break;
+
+//                     case 'hour':
+//                     case 'hours':
+//                     default:
+//                         $durationHours = $durationValue;
+//                         break;
+//                 }
+//             }
+
+//             $durationHours = round($durationHours, 2);
+
+//             /*
+//              * Priority:
+//              * High   = 1
+//              * Medium = 2
+//              * Low    = 3
+//              */
+//             $priority = match (strtolower($activity->priority ?? 'medium')) {
+//                 'high'   => 1,
+//                 'medium' => 2,
+//                 'low'    => 3,
+//                 default  => 2,
+//             };
+
+//             /*
+//              * Time difference:
+//              *
+//              * Due time - Current time - Duration
+//              */
+//             $timeDifference = round(
+//                 $remainingHours - $durationHours,
+//                 2
+//             );
+
+//             /*
+//              * If task is overdue after considering duration:
+//              *
+//              * Adjusted Priority = 4 - Priority
+//              */
+//             $adjustedPriority = $priority;
+
+//             if ($timeDifference < 0) {
+//                 $adjustedPriority = 4 - $priority;
+//             }
+
+//             /*
+//              * Final Urgency:
+//              *
+//              * Urgency = Time Difference × Adjusted Priority
+//              */
+//             $urgency = round(
+//                 $timeDifference * $adjustedPriority,
+//                 2
+//             );
+
+//             $activity->urgency = $urgency;
+//             $activity->remaining_hours = round($remainingHours, 2);
+//             $activity->duration_hours = $durationHours;
+//             $activity->priority_value = $priority;
+//             $activity->adjusted_priority = $adjustedPriority;
+//             $activity->time_difference = $timeDifference;
+
+//             return $activity;
+
+//         })->sortBy('urgency')->values();
+
+//         return response()->json([
+//             'success' => true,
+//             'activities' => $activities
+//         ]);
+
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'success' => false,
+//             'message' => $e->getMessage()
+//         ], 500);
+//     }
+// }
 
     public function show($id)
     {
@@ -199,7 +355,7 @@ $duration = round($duration, 2);
                 }
             }
 
-        $data = $validator->validated();
+            $data = $validator->validated();
 
 
             // Upload thumbnail
@@ -356,11 +512,11 @@ $duration = round($duration, 2);
             }
 
 
-          
-            
+
+
             $data = $validator->validated();
 
-    
+
             if ($request->boolean('remove_thumbnail')) {
 
                 if (
