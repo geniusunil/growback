@@ -94,148 +94,38 @@ class ActivityController extends Controller
     }
 
 
-    // public function index(Request $request)
-    // {
-    //     try {
-    //         $user_id = $request->query('user_id');
-    //         $guest_id = $request->query('guest_id');
+   
+public function unmarkComplete($id)
+{
+    try {
+        $activity = Activity::find($id);
 
-    //         if (!$user_id && !$guest_id) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Missing ID'
-    //             ], 400);
-    //         }
+        if (!$activity) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Activity not found'
+            ], 404);
+        }
 
-    //         $activities = Activity::with('attachments')
-    //             ->when($user_id, fn($q) => $q->where('user_id', $user_id))
-    //             ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
-    //             ->get();
+        // Mark activity as active again
+        $activity->update([
+            'is_completed' => false,
+            'completed_at' => null,
+        ]);
 
-    //         $activities = $activities->map(function ($activity) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Activity marked as active',
+            'activity' => $activity->fresh()
+        ]);
 
-    //             /*
-    //              * Due time:
-    //              * If due date is not provided,
-    //              * use created_at + 8 days.
-    //              */
-    //             $dueTime = !empty($activity->due_date)
-    //                 ? Carbon::parse($activity->due_date)
-    //                 : Carbon::parse($activity->created_at)->addDays(8);
-
-    //             /*
-    //              * Remaining time in hours:
-    //              * Due time - Current time
-    //              */
-    //             $remainingHours = now()->diffInHours($dueTime, false);
-
-    //             /*
-    //              * Duration:
-    //              * Default = 1 hour if duration is empty or none.
-    //              */
-    //             if (
-    //                 empty($activity->duration_value) ||
-    //                 strtolower($activity->duration_unit ?? '') === 'none'
-    //             ) {
-    //                 $durationHours = 1;
-    //             } else {
-    //                 $durationValue = (float) $activity->duration_value;
-    //                 $durationUnit = strtolower($activity->duration_unit ?? 'hour');
-
-    //                 switch ($durationUnit) {
-    //                     case 'minute':
-    //                     case 'minutes':
-    //                         $durationHours = $durationValue / 60;
-    //                         break;
-
-    //                     case 'day':
-    //                     case 'days':
-    //                         $durationHours = $durationValue * 24;
-    //                         break;
-
-    //                     case 'week':
-    //                     case 'weeks':
-    //                         $durationHours = $durationValue * 24 * 7;
-    //                         break;
-
-    //                     case 'hour':
-    //                     case 'hours':
-    //                     default:
-    //                         $durationHours = $durationValue;
-    //                         break;
-    //                 }
-    //             }
-
-    //             $durationHours = round($durationHours, 2);
-
-    //             /*
-    //              * Priority:
-    //              * High   = 1
-    //              * Medium = 2
-    //              * Low    = 3
-    //              */
-    //             $priority = match (strtolower($activity->priority ?? 'medium')) {
-    //                 'high'   => 1,
-    //                 'medium' => 2,
-    //                 'low'    => 3,
-    //                 default  => 2,
-    //             };
-
-    //             /*
-    //              * Time difference:
-    //              *
-    //              * Due time - Current time - Duration
-    //              */
-    //             $timeDifference = round(
-    //                 $remainingHours - $durationHours,
-    //                 2
-    //             );
-
-    //             /*
-    //              * If task is overdue after considering duration:
-    //              *
-    //              * Adjusted Priority = 4 - Priority
-    //              */
-    //             $adjustedPriority = $priority;
-
-    //             if ($timeDifference < 0) {
-    //                 $adjustedPriority = 4 - $priority;
-    //             }
-
-    //             /*
-    //              * Final Urgency:
-    //              *
-    //              * Urgency = Time Difference × Adjusted Priority
-    //              */
-    //             $urgency = round(
-    //                 $timeDifference * $adjustedPriority,
-    //                 2
-    //             );
-
-    //             $activity->urgency = $urgency;
-    //             $activity->remaining_hours = round($remainingHours, 2);
-    //             $activity->duration_hours = $durationHours;
-    //             $activity->priority_value = $priority;
-    //             $activity->adjusted_priority = $adjustedPriority;
-    //             $activity->time_difference = $timeDifference;
-
-    //             return $activity;
-
-    //         })->sortBy('urgency')->values();
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'activities' => $activities
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
     public function show($id)
     {
         try {
@@ -309,7 +199,11 @@ class ActivityController extends Controller
                 'custom_sound_path' => 'nullable|string',
                 'duration_value' => 'nullable|numeric|min:0',
                 'duration_unit' => 'nullable|in:none,minutes,hours,days,weeks,months,years',
-                'due_date' => 'nullable|date'
+                'due_date' => 'nullable|date',
+                'repeat_enabled' => 'nullable|boolean',
+'urls' => 'nullable|array',
+'urls.*' => 'url|max:2048',
+
 
             ]);
 
@@ -444,6 +338,22 @@ class ActivityController extends Controller
                 ], 404);
             }
 
+            // Convert reminder_times JSON string to array
+            if ($request->has('reminder_times') && is_string($request->reminder_times)) {
+
+                $decodedReminderTimes = json_decode($request->reminder_times, true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid reminder_times format.'
+                    ], 422);
+                }
+
+                $request->merge([
+                    'reminder_times' => $decodedReminderTimes
+                ]);
+            }
             $validator = Validator::make($request->all(), [
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
@@ -494,6 +404,10 @@ class ActivityController extends Controller
                 'due_date' => 'nullable|date',
                 'is_completed' => 'nullable|boolean',
                 'completed_at' => 'nullable|date',
+                'repeat_enabled' => 'nullable|boolean',
+'urls' => 'nullable|array',
+'urls.*' => 'url|max:2048',
+
             ]);
 
             if ($validator->fails()) {
@@ -541,10 +455,13 @@ class ActivityController extends Controller
             $data = $validator->validated();
 
 
-            // Check reminder time is not in the past
-            if (!empty($data['reminder_times'])) {
+            // Check reminder time only when user changes reminder date/time
+            $oldReminderTimes = $activity->reminder_times ?? [];
+            $newReminderTimes = $data['reminder_times'] ?? [];
 
-                foreach ($data['reminder_times'] as $reminder) {
+            if ($oldReminderTimes != $newReminderTimes) {
+
+                foreach ($newReminderTimes as $reminder) {
 
                     if (!empty($reminder['date']) && !empty($reminder['time'])) {
 
@@ -555,6 +472,7 @@ class ActivityController extends Controller
                         );
 
                         if ($reminderDateTime->isPast()) {
+
                             return response()->json([
                                 'success' => false,
                                 'message' => 'Reminder time cannot be in the past.'

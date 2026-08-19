@@ -19,6 +19,9 @@ return new class extends Migration
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();
+             $table->boolean('is_deletion_scheduled')->default(false);
+    $table->timestamp('deletion_scheduled_at')->nullable();
+    $table->timestamp('deletion_due_at')->nullable();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

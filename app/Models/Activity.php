@@ -10,31 +10,38 @@ use App\Models\Attachment;
 class Activity extends Model
 {
     use SoftDeletes;
-    protected $fillable = [
-        'user_id',
-        'guest_id',
-        'title',
-        'description',
-        'category',
-        'reminder_times',
-        'frequency_unit',
-        'frequency_value',
-        'reminder_sound',
-        'reminder_vibration',
-        'priority',
-        'thumbnail',
-        'show_in_drawer',
-        'notification_sound',
-        'notification_vibration',
-        'show_full_screen',
-        'custom_sound_path',
-        'due_date',
-        'is_completed',
-        'completed_at',
-        'duration_value',
-        'duration_unit',
+protected $fillable = [
+    'user_id',
+    'guest_id',
+    'title',
+    'description',
+    'category',
+    'reminder_times',
+    'frequency_unit',
+    'frequency_value',
 
-    ];
+    // NEW
+    'repeat_enabled',
+
+    'reminder_sound',
+    'reminder_vibration',
+    'priority',
+    'thumbnail',
+    'show_in_drawer',
+    'notification_sound',
+    'notification_vibration',
+    'show_full_screen',
+    'custom_sound_path',
+    'due_date',
+    'is_completed',
+    'completed_at',
+    'duration_value',
+    'duration_unit',
+
+    // NEW
+    'urls',
+];
+
 
     protected $casts = [
         'reminder_times' => 'array',
@@ -47,7 +54,8 @@ class Activity extends Model
        'due_date' => 'datetime',
         'completed_at'         => 'datetime',
         'duration_value' => 'float',
-
+    'repeat_enabled' => 'boolean',
+    'urls' => 'array',
     ];
 
     public function user()

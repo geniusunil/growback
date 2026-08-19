@@ -26,6 +26,9 @@ class User extends Authenticatable
         'username',
         'email',
         'password',
+        'is_deletion_scheduled',
+        'deletion_scheduled_at',
+        'deletion_due_at',
     ];
 
     /**

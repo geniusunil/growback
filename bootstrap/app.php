@@ -11,10 +11,17 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->statefulApi();
-        $middleware->prependToGroup('api', \Illuminate\Http\Middleware\HandleCors::class);
-    })
+    // ->withMiddleware(function (Middleware $middleware): void {
+    //     $middleware->statefulApi();
+    //     $middleware->prependToGroup('api', \Illuminate\Http\Middleware\HandleCors::class);
+    // })
+    ->withMiddleware(function (Middleware $middleware) {
+    $middleware->validateCsrfTokens(except: [
+        'api/*',
+    ]);
+})
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
+
+

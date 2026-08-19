@@ -18,7 +18,7 @@ Route::get('/user', function (Request $request) {
 Route::post('/signup', [AuthController::class, 'signup']);
 Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
 Route::post('/google-login', [GoogleLoginController::class, 'googleLogin']);
-
+Route::post('/activities/{id}/uncomplete', [ActivityController::class, 'unmarkComplete']);
 
 Route::post('/activities', [ActivityController::class, 'store']);
 Route::get('/activities', [ActivityController::class, 'index']);
@@ -39,7 +39,9 @@ Route::delete('/attachments/{id}', [ActivityController::class, 'deleteAttachment
 Route::post('/attachments/{id}/delete', [ActivityController::class, 'deleteAttachment']);
 
 
-
+Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
+Route::post('/cancel-deletion', [AuthController::class, 'cancelDeletion']);
+Route::post('/reactivate-activity', [AuthController::class, 'reactivateActivity']);
 
 Route::post('/backup/export', [BackupController::class, 'export']);
 Route::post('/backup/import', [BackupController::class, 'import']);

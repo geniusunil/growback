@@ -37,13 +37,5 @@ class UserSeeder extends Seeder
             ]
         );
 
-        User::updateOrCreate(
-            ['email' => 'sharmarajesh3578@gmail.com'],
-            [
-                'username' => 'Rajesh Sharma',
-                'password' => Hash::make('12345678'),
-                'email_verified_at' => null,
-            ]
-        );
     }
 }
