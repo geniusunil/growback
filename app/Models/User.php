@@ -29,6 +29,7 @@ class User extends Authenticatable
         'is_deletion_scheduled',
         'deletion_scheduled_at',
         'deletion_due_at',
+        'fcm_token',
     ];
 
     /**
@@ -52,5 +53,20 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+      public static function appendFcmToken($user, $newToken)
+    {
+        if (!$user || empty($newToken)) return;
+        try {
+            $tokens = json_decode($user->fcm_token, true);
+            if (!is_array($tokens)) {
+                $tokens = array_filter(explode(',', (string)$user->fcm_token));
+            }
+            if (!in_array($newToken, $tokens)) {
+                $tokens[] = $newToken;
+            }
+            $tokens = array_values(array_unique(array_filter($tokens)));
+            $user->update(['fcm_token' => json_encode($tokens)]);
+        } catch (\Exception $e) {}
     }
 }

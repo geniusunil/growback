@@ -54,13 +54,18 @@ class GoogleLoginController extends Controller
                 'password' => Hash::make(Str::random(20)),
             ]
         );
+        
+        if ($request->filled('fcm_token')) {
+            User::appendFcmToken($user, $request->fcm_token);
+        }
 
         $token = $user->createToken('mobile')->plainTextToken;
 
         return response()->json([
             'message' => 'Google login successful',
             'token' => $token,
-            'user' => $user,
+          
+              'user' => $user->fresh(),
         ]);
     }
 }

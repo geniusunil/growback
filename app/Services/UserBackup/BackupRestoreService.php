@@ -9,53 +9,115 @@ class BackupRestoreService
 {
     protected BackupImportService $importService;
 
-    public function __construct(BackupImportService $importService)
-    {
+    public function __construct(
+        BackupImportService $importService
+    ) {
         $this->importService = $importService;
     }
 
     public function restore(string $fileName)
     {
-        $zipPath = storage_path('app/private/backups/' . $fileName . '.zip');
+        /*
+        |--------------------------------------------------------------------------
+        | ZIP Path
+        |--------------------------------------------------------------------------
+        */
+
+        $zipPath =
+            storage_path(
+                'app/private/backups/' .
+                $fileName .
+                '.zip'
+            );
 
         if (!file_exists($zipPath)) {
             return "Backup ZIP not found.";
         }
 
-        $extractPath = storage_path('app/private/backups/' . $fileName);
+        /*
+        |--------------------------------------------------------------------------
+        | Extraction Path
+        |--------------------------------------------------------------------------
+        */
 
-        // Delete old extracted folder if exists
+        $extractPath =
+            storage_path(
+                'app/private/backups/' .
+                $fileName
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove Existing Extraction
+        |--------------------------------------------------------------------------
+        */
+
         if (is_dir($extractPath)) {
-            Storage::deleteDirectory('backups/' . $fileName);
+
+            Storage::deleteDirectory(
+                'backups/' . $fileName
+            );
         }
 
-        // Create extraction folder
-        Storage::makeDirectory('backups/' . $fileName);
+        /*
+        |--------------------------------------------------------------------------
+        | Create Extraction Directory
+        |--------------------------------------------------------------------------
+        */
+
+        Storage::makeDirectory(
+            'backups/' . $fileName
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Open ZIP
+        |--------------------------------------------------------------------------
+        */
 
         $zip = new ZipArchive();
 
         $result = $zip->open($zipPath);
 
-        // Debug
-
-
         if ($result !== true) {
+
             return "Unable to open ZIP file.";
         }
 
-        $zip->extractTo($extractPath);
+        /*
+        |--------------------------------------------------------------------------
+        | Extract
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$zip->extractTo($extractPath)) {
+
+            $zip->close();
+
+            return "Unable to extract ZIP file.";
+        }
 
         $zip->close();
 
- 
+        /*
+        |--------------------------------------------------------------------------
+        | Import
+        |--------------------------------------------------------------------------
+        */
 
-        // Import backup.json
         $message = $this->importService->import(
             'backups/' . $fileName
         );
 
-        // Delete extracted folder
-        Storage::deleteDirectory('backups/' . $fileName);
+        /*
+        |--------------------------------------------------------------------------
+        | Cleanup
+        |--------------------------------------------------------------------------
+        */
+
+        Storage::deleteDirectory(
+            'backups/' . $fileName
+        );
 
         return $message;
     }

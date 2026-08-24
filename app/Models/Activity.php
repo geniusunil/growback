@@ -40,6 +40,9 @@ protected $fillable = [
 
     // NEW
     'urls',
+     'is_mandatory_gap',
+    'mandatory_gap_value',
+    'mandatory_gap_unit',
 ];
 
 

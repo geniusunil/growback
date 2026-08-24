@@ -16,7 +16,6 @@ class BackupExportService
         BackupZipService $zipService
     ) {
         $this->fileService = $fileService;
-        
         $this->zipService = $zipService;
     }
 
@@ -32,13 +31,26 @@ class BackupExportService
 
         if ($users === 'all') {
 
-            $userCollection = User::with('activities.attachments')->get();
+            $userCollection = User::with([
+                'activities' => function ($query) {
+                    $query->withTrashed()
+                        ->with('attachments');
+                }
+            ])->get();
 
         } elseif (!empty($users)) {
 
-            $userIds = array_map('trim', explode(',', $users));
+            $userIds = array_map(
+                'trim',
+                explode(',', $users)
+            );
 
-            $userCollection = User::with('activities.attachments')
+            $userCollection = User::with([
+                'activities' => function ($query) {
+                    $query->withTrashed()
+                        ->with('attachments');
+                }
+            ])
                 ->whereIn('id', $userIds)
                 ->get();
 
@@ -49,20 +61,20 @@ class BackupExportService
 
         /*
         |--------------------------------------------------------------------------
-        | Backup Array
+        | Backup Structure
         |--------------------------------------------------------------------------
         */
 
         $backup = [
-            'version'    => 1,
+            'version' => 2,
             'created_at' => now()->toDateTimeString(),
-            'users'      => [],
-            'guests'     => [],
+            'users' => [],
+            'guests' => [],
         ];
 
         /*
         |--------------------------------------------------------------------------
-        | Registered Users Data
+        | Registered Users
         |--------------------------------------------------------------------------
         */
 
@@ -70,16 +82,33 @@ class BackupExportService
 
             $backup['users'][] = [
 
-                'user' => $user->only([
-                    'id',
-                    'username',
-                    'email',
-                    'email_verified_at',
-                    'created_at',
-                    'updated_at',
-                ]),
+                'user' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'email' => $user->email,
+                    'email_verified_at' => $user->email_verified_at?->toDateTimeString(),
+                    'password' => $user->getRawOriginal('password'),
+                    'remember_token' => $user->getRawOriginal('remember_token'),
 
-                'activities' => $user->activities->toArray(),
+                    'is_deletion_scheduled' =>
+                        (bool) $user->is_deletion_scheduled,
+
+                    'deletion_scheduled_at' =>
+                        $user->deletion_scheduled_at?->toDateTimeString(),
+
+                    'deletion_due_at' =>
+                        $user->deletion_due_at?->toDateTimeString(),
+
+                    'created_at' =>
+                        $user->created_at?->toDateTimeString(),
+
+                    'updated_at' =>
+                        $user->updated_at?->toDateTimeString(),
+                ],
+
+                'activities' => $this->formatActivities(
+                    $user->activities
+                ),
             ];
         }
 
@@ -88,31 +117,38 @@ class BackupExportService
         | Guest Activities
         |--------------------------------------------------------------------------
         */
-if ($users === 'all' || $guests === 'all') {
 
-    $guestActivities = Activity::with('attachments')
-        ->whereNotNull('guest_id')
-        ->get()
-        ->groupBy('guest_id');
+        if ($users === 'all' || $guests === 'all') {
 
-} elseif (!empty($guests)) {
+            $guestActivities = Activity::withTrashed()
+                ->with('attachments')
+                ->whereNotNull('guest_id')
+                ->get()
+                ->groupBy('guest_id');
 
-    $guestIds = array_map('trim', explode(',', $guests));
+        } elseif (!empty($guests)) {
 
-    $guestActivities = Activity::with('attachments')
-        ->whereIn('guest_id', $guestIds)
-        ->get()
-        ->groupBy('guest_id');
+            $guestIds = array_map(
+                'trim',
+                explode(',', $guests)
+            );
 
-} else {
+            $guestActivities = Activity::withTrashed()
+                ->with('attachments')
+                ->whereIn('guest_id', $guestIds)
+                ->get()
+                ->groupBy('guest_id');
 
-    $guestActivities = collect();
-}
+        } else {
+
+            $guestActivities = collect();
+        }
+
         foreach ($guestActivities as $guestId => $activities) {
 
             $backup['guests'][] = [
-                'guest_id'   => $guestId,
-                'activities' => $activities->toArray(),
+                'guest_id' => $guestId,
+                'activities' => $this->formatActivities($activities),
             ];
         }
 
@@ -128,7 +164,8 @@ if ($users === 'all' || $guests === 'all') {
         ) {
             return 'No users or guests found.';
         }
-                /*
+
+        /*
         |--------------------------------------------------------------------------
         | Backup Folder
         |--------------------------------------------------------------------------
@@ -143,7 +180,8 @@ if ($users === 'all' || $guests === 'all') {
             if ($users === 'all') {
                 $folderName = 'users_all';
             } else {
-                $folderName = 'users_' . str_replace(',', '_', $users);
+                $folderName = 'users_' .
+                    str_replace(',', '_', $users);
             }
 
         } else {
@@ -151,20 +189,36 @@ if ($users === 'all' || $guests === 'all') {
             if ($guests === 'all') {
                 $folderName = 'guests_all';
             } else {
-                $folderName = 'guests_' . str_replace(',', '_', $guests);
+                $folderName = 'guests_' .
+                    str_replace(',', '_', $guests);
             }
         }
 
-        // Fresh Folder
-        Storage::deleteDirectory('backups/' . $folderName);
+        /*
+        |--------------------------------------------------------------------------
+        | Fresh Backup Folder
+        |--------------------------------------------------------------------------
+        */
 
-        Storage::makeDirectory('backups/' . $folderName);
-        Storage::makeDirectory('backups/' . $folderName . '/thumbnails');
-        Storage::makeDirectory('backups/' . $folderName . '/attachments');
+        Storage::deleteDirectory(
+            'backups/' . $folderName
+        );
+
+        Storage::makeDirectory(
+            'backups/' . $folderName
+        );
+
+        Storage::makeDirectory(
+            'backups/' . $folderName . '/thumbnails'
+        );
+
+        Storage::makeDirectory(
+            'backups/' . $folderName . '/attachments'
+        );
 
         /*
         |--------------------------------------------------------------------------
-        | Save backup.json
+        | Save JSON
         |--------------------------------------------------------------------------
         */
 
@@ -172,13 +226,14 @@ if ($users === 'all' || $guests === 'all') {
             'backups/' . $folderName . '/backup.json',
             json_encode(
                 $backup,
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+                JSON_PRETTY_PRINT |
+                JSON_UNESCAPED_SLASHES
             )
         );
 
         /*
         |--------------------------------------------------------------------------
-        | Copy Files
+        | Copy Physical Files
         |--------------------------------------------------------------------------
         */
 
@@ -193,10 +248,130 @@ if ($users === 'all' || $guests === 'all') {
         |--------------------------------------------------------------------------
         */
 
-        $zipFile = $this->zipService->createZip(
+        return $this->zipService->createZip(
             $folderName
         );
+    }
 
-        return $zipFile;
+    /**
+     * Convert activities to a complete backup structure.
+     */
+    private function formatActivities($activities): array
+    {
+        $result = [];
+
+        foreach ($activities as $activity) {
+
+            $result[] = [
+
+                'id' => $activity->id,
+
+                'user_id' => $activity->user_id,
+
+                'guest_id' => $activity->guest_id,
+
+                'title' => $activity->title,
+
+                'description' => $activity->description,
+
+                'category' => $activity->category,
+
+                'duration_value' => $activity->duration_value,
+
+                'duration_unit' => $activity->duration_unit,
+
+                'due_date' => $activity->due_date?->toDateTimeString(),
+
+                'is_completed' => (bool) $activity->is_completed,
+
+                'completed_at' =>
+                    $activity->completed_at?->toDateTimeString(),
+
+                'reminder_times' => $activity->reminder_times,
+
+                'frequency_unit' => $activity->frequency_unit,
+
+                'frequency_value' => $activity->frequency_value,
+
+                'repeat_enabled' =>
+                    (bool) $activity->repeat_enabled,
+
+                'reminder_sound' => $activity->reminder_sound,
+
+                'custom_sound_path' =>
+                    $activity->custom_sound_path,
+
+                'reminder_vibration' =>
+                    (bool) $activity->reminder_vibration,
+
+                'priority' => $activity->priority,
+
+                'thumbnail' => $activity->thumbnail,
+
+                'show_in_drawer' =>
+                    (bool) $activity->show_in_drawer,
+
+                'notification_sound' =>
+                    (bool) $activity->notification_sound,
+
+                'notification_vibration' =>
+                    (bool) $activity->notification_vibration,
+
+                'show_full_screen' =>
+                    (bool) $activity->show_full_screen,
+
+                'urls' => $activity->urls,
+
+                'created_at' =>
+                    $activity->created_at?->toDateTimeString(),
+
+                'updated_at' =>
+                    $activity->updated_at?->toDateTimeString(),
+
+                'deleted_at' =>
+                    $activity->deleted_at?->toDateTimeString(),
+
+                'attachments' =>
+                    $this->formatAttachments(
+                        $activity->attachments
+                    ),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Convert attachments to complete backup structure.
+     */
+    private function formatAttachments($attachments): array
+    {
+        $result = [];
+
+        foreach ($attachments as $attachment) {
+
+            $result[] = [
+
+                'id' => $attachment->id,
+
+                'user_id' => $attachment->user_id,
+
+                'guest_id' => $attachment->guest_id,
+
+                'activity_id' => $attachment->activity_id,
+
+                'file_name' => $attachment->file_name,
+
+                'file_size' => $attachment->file_size,
+
+                'created_at' =>
+                    $attachment->created_at?->toDateTimeString(),
+
+                'updated_at' =>
+                    $attachment->updated_at?->toDateTimeString(),
+            ];
+        }
+
+        return $result;
     }
 }

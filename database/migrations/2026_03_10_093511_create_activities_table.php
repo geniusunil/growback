@@ -64,6 +64,14 @@ return new class extends Migration
             $table->boolean('notification_vibration')->default(true);
 
             $table->boolean('show_full_screen')->default(false);
+            
+        
+    $table->timestamp('snoozed_until')->nullable();
+    
+     $table->boolean('is_mandatory_gap')->default(false);
+            $table->integer('mandatory_gap_value')->default(0);
+            $table->string('mandatory_gap_unit')->default('minutes');
+
 
             // NEW FIELD
             $table->json('urls')->nullable();

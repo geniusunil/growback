@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\Attachment;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
-
+use App\Models\User;
 
 class ActivityController extends Controller
 {
@@ -126,6 +126,7 @@ public function unmarkComplete($id)
         ], 500);
     }
 }
+    
     public function show($id)
     {
         try {
@@ -144,8 +145,18 @@ public function unmarkComplete($id)
     /**
      * Store a newly created activity in storage.
      */
+     
     public function store(Request $request)
     {
+//         $user = User::find(2);
+
+// if (
+
+//     $user->deletion_scheduled_at 
+   
+// ) {
+//     return "account deleted";
+// }
         Log::info('Activity store request arrived', $request->all());
 
         try {
@@ -190,6 +201,11 @@ public function unmarkComplete($id)
                 'reminder_times' => 'nullable|array',
                 'frequency_unit' => 'nullable|string|in:none,minutes,hours,days,weeks,months,years',
                 'frequency_value' => 'nullable|integer|min:0',
+                
+                  'is_mandatory_gap' => 'nullable|boolean',
+                'mandatory_gap_value' => 'nullable|integer|min:0',
+                'mandatory_gap_unit' => 'nullable|string|in:minutes,hours,days,weeks,years',
+
                 'reminder_sound' => 'nullable|string|in:continuous,small,none',
                 'reminder_vibration' => 'nullable|boolean',
                 'show_in_drawer' => 'nullable|boolean',
@@ -392,6 +408,10 @@ public function unmarkComplete($id)
                 'reminder_times' => 'nullable|array',
                 'frequency_unit' => 'nullable|string|in:none,minutes,hours,days,weeks,months,years',
                 'frequency_value' => 'nullable|integer|min:0',
+                  'is_mandatory_gap' => 'nullable|boolean',
+                'mandatory_gap_value' => 'nullable|integer|min:0',
+                'mandatory_gap_unit' => 'nullable|string|in:minutes,hours,days,weeks,years',
+
                 'reminder_sound' => 'nullable|string|in:continuous,small,none',
                 'reminder_vibration' => 'nullable|boolean',
                 'show_in_drawer' => 'nullable|boolean',
@@ -594,22 +614,34 @@ public function unmarkComplete($id)
     /**
      * Mark an activity as permanently completed (stops alarms).
      */
-    public function markComplete($id)
+
+    
+       public function markComplete($id)
     {
         try {
             $activity = Activity::find($id);
             if (!$activity) {
                 return response()->json(['success' => false, 'message' => 'Activity not found'], 404);
             }
-            $activity->update([
-                'is_completed' => true,
-                'completed_at' => now(),
+            
+           
+            $activity->is_completed  = true;
+            $activity->completed_at  = now()->second(0);
+            $activity->snoozed_until = null; 
+            $activity->save();
+
+            return response()->json([
+                'success'  => true, 
+                'message'  => 'Activity marked as completed', 
+                'activity' => $activity->fresh()
             ]);
-            return response()->json(['success' => true, 'message' => 'Activity marked as completed', 'activity' => $activity->fresh()]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+
+
 
     /**
      * Soft-delete an activity (moves to trash).
@@ -627,8 +659,8 @@ public function unmarkComplete($id)
                 ], 404);
             }
 
-            // ðŸ”¥ Force set deleted_at (backup safe method)
-            $activity->deleted_at = now();
+          
+            $activity->deleted_at = now()->second(0);
             $activity->save();
 
             return response()->json([

@@ -6,74 +6,38 @@ use Illuminate\Support\Facades\Storage;
 
 class BackupFileService
 {
-    public function copyFiles(array $backup, string $folderName): void
-    {
-        Storage::makeDirectory('backups/' . $folderName . '/thumbnails');
-        Storage::makeDirectory('backups/' . $folderName . '/attachments');
+    public function copyFiles(
+        array $backup,
+        string $folderName
+    ): void {
+
+        Storage::makeDirectory(
+            'backups/' . $folderName . '/thumbnails'
+        );
+
+        Storage::makeDirectory(
+            'backups/' . $folderName . '/attachments'
+        );
 
         /*
         |--------------------------------------------------------------------------
-        | User Activities
+        | Registered User Activities
         |--------------------------------------------------------------------------
         */
 
-        foreach ($backup['users'] as $user) {
+        foreach ($backup['users'] ?? [] as $user) {
 
-            foreach ($user['activities'] as $activity) {
+            foreach ($user['activities'] ?? [] as $activity) {
 
-                /*
-                |--------------------------------------------------------------------------
-                | Thumbnail
-                |--------------------------------------------------------------------------
-                */
+                $this->copyThumbnail(
+                    $activity['thumbnail'] ?? null,
+                    $folderName
+                );
 
-                if (!empty($activity['thumbnail'])) {
-
-                    $source = 'thumbnails/' . $activity['thumbnail'];
-
-                    $destination = 'backups/' .
-                        $folderName .
-                        '/thumbnails/' .
-                        $activity['thumbnail'];
-
-                    if (Storage::disk('public')->exists($source)) {
-
-                        Storage::put(
-                            $destination,
-                            Storage::disk('public')->get($source)
-                        );
-                    }
-                }
-
-                /*
-                |--------------------------------------------------------------------------
-                | Attachments
-                |--------------------------------------------------------------------------
-                */
-
-                if (!empty($activity['attachments'])) {
-
-                    foreach ($activity['attachments'] as $attachment) {
-
-                        if (!empty($attachment['file_name'])) {
-
-                            $source = 'attachments/' . $attachment['file_name'];
-
-                            $destination = 'backups/' .
-                                $folderName .
-                                '/attachments/' .
-                                $attachment['file_name'];
-
-                            if (Storage::disk('public')->exists($source)) {
-
-                                Storage::put(
-                                    $destination,
-                                    Storage::disk('public')->get($source)
-                                );
-                            }
-                        }
-                    }
-                }
+                $this->copyAttachments(
+                    $activity['attachments'] ?? [],
+                    $folderName
+                );
             }
         }
 
@@ -83,66 +47,84 @@ class BackupFileService
         |--------------------------------------------------------------------------
         */
 
-        if (!empty($backup['guests'])) {
+        foreach ($backup['guests'] ?? [] as $guest) {
 
-            foreach ($backup['guests'] as $guest) {
+            foreach ($guest['activities'] ?? [] as $activity) {
 
-                foreach ($guest['activities'] as $activity) {
+                $this->copyThumbnail(
+                    $activity['thumbnail'] ?? null,
+                    $folderName
+                );
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Guest Thumbnail
-                    |--------------------------------------------------------------------------
-                    */
+                $this->copyAttachments(
+                    $activity['attachments'] ?? [],
+                    $folderName
+                );
+            }
+        }
+    }
 
-                    if (!empty($activity['thumbnail'])) {
+    private function copyThumbnail(
+        ?string $thumbnail,
+        string $folderName
+    ): void {
 
-                        $source = 'thumbnails/' . $activity['thumbnail'];
+        if (empty($thumbnail)) {
+            return;
+        }
 
-                        $destination = 'backups/' .
-                            $folderName .
-                            '/thumbnails/' .
-                            $activity['thumbnail'];
+        $source = 'thumbnails/' . $thumbnail;
 
-                        if (Storage::disk('public')->exists($source)) {
+        $destination =
+            'backups/' .
+            $folderName .
+            '/thumbnails/' .
+            $thumbnail;
 
-                            Storage::put(
-                                $destination,
-                                Storage::disk('public')->get($source)
-                            );
-                        }
-                    }
+        if (
+            Storage::disk('public')
+                ->exists($source)
+        ) {
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | Guest Attachments
-                    |--------------------------------------------------------------------------
-                    */
+            Storage::put(
+                $destination,
+                Storage::disk('public')->get($source)
+            );
+        }
+    }
 
-                    if (!empty($activity['attachments'])) {
+    private function copyAttachments(
+        array $attachments,
+        string $folderName
+    ): void {
 
-                        foreach ($activity['attachments'] as $attachment) {
+        foreach ($attachments as $attachment) {
 
-                            if (!empty($attachment['file_name'])) {
+            if (empty($attachment['file_name'])) {
+                continue;
+            }
 
-                                $source = 'attachments/' . $attachment['file_name'];
+            $fileName =
+                $attachment['file_name'];
 
-                                $destination = 'backups/' .
-                                    $folderName .
-                                    '/attachments/' .
-                                    $attachment['file_name'];
+            $source =
+                'attachments/' . $fileName;
 
-                                if (Storage::disk('public')->exists($source)) {
+            $destination =
+                'backups/' .
+                $folderName .
+                '/attachments/' .
+                $fileName;
 
-                                    Storage::put(
-                                        $destination,
-                                        Storage::disk('public')->get($source)
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
+            if (
+                Storage::disk('public')
+                    ->exists($source)
+            ) {
+
+                Storage::put(
+                    $destination,
+                    Storage::disk('public')->get($source)
+                );
             }
         }
     }

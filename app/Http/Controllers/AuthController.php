@@ -83,6 +83,9 @@ class AuthController extends Controller
             ]
         );
 
+          if ($request->filled('fcm_token')) {
+            User::appendFcmToken($user, $request->fcm_token);
+        }
         // OTP one-time use
         $record->delete();
 
@@ -92,7 +95,7 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Login successful',
             'token'   => $token,
-            'user'    => $user,
+             'user'    => $user->fresh(),
         ], 200);
     }
     
@@ -231,5 +234,125 @@ class AuthController extends Controller
             ], 500);
         }
     }
+    
+     public function snoozeActivity(Request $request)
+    {
+        $id = $request->input('activity_id') ?? $request->input('id');
+        $title = $request->input('title');
+        $rawSnoozedUntil = $request->input('snoozed_until');
+
+        try {
+            date_default_timezone_set('Asia/Kolkata');
+            config(['app.timezone' => 'Asia/Kolkata']);
+            try { \Illuminate\Support\Facades\DB::statement("SET time_zone = '+05:30'"); } catch (\Exception $e) {}
+
+            $snoozedUntil = null;
+            if (!empty($rawSnoozedUntil)) {
+                $snoozedUntil = \Carbon\Carbon::parse($rawSnoozedUntil)->setTimezone('Asia/Kolkata')->format('Y-m-d H:i:00');
+            }
+
+            $query = \Illuminate\Support\Facades\DB::table('activities');
+            if (!empty($id)) {
+                $query->where('id', $id);
+            } elseif (!empty($title)) {
+                $query->where('title', $title);
+            } else {
+                return response()->json(['success' => false, 'message' => 'Activity ID or Title is required'], 400);
+            }
+
+            $query->update([
+                'snoozed_until' => $snoozedUntil,
+                'updated_at'    => \Carbon\Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Snooze timestamp saved in DB successfully.',
+                'snoozed_until' => $snoozedUntil
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error saving snooze timestamp: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    public function saveFcmToken(Request $request)
+    {
+        $token = $request->input('fcm_token');
+        if (!$token) {
+            return response()->json(['success' => false, 'message' => 'Token required'], 400);
+        }
+
+        try {
+            $user = $request->user();
+            if ($user) {
+                $user->update(['fcm_token' => $token]);
+            }
+            return response()->json(['success' => true, 'message' => 'FCM Token saved successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Helper to send FCM Push Notification to all active tokens of a User
+     */
+    public static function sendFcmPushToUser($userId, $dataPayload = ['action' => 'sync_activities'])
+    {
+        try {
+            if (!$userId) return false;
+            $user = User::find($userId);
+            if (!$user || empty($user->fcm_token)) return false;
+
+            $serverKey = env('FCM_SERVER_KEY', '');
+            if (empty($serverKey)) return false;
+
+            $payload = [
+                'to' => $user->fcm_token,
+                'priority' => 'high',
+                'data' => $dataPayload,
+            ];
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'https://fcm.googleapis.com/fcm/send');
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: key=' . $serverKey,
+                'Content-Type: application/json',
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+            $result = curl_exec($ch);
+            curl_close($ch);
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * API Endpoint to manually trigger FCM Push to a user
+     */
+    public function triggerFcmPush(Request $request)
+    {
+        $userId = $request->input('user_id');
+        if (!$userId && $request->user()) {
+            $userId = $request->user()->id;
+        }
+
+        if (!$userId) {
+            return response()->json(['success' => false, 'message' => 'User ID is required'], 400);
+        }
+
+        $sent = self::sendFcmPushToUser($userId, ['action' => 'sync_activities']);
+        if ($sent) {
+            return response()->json(['success' => true, 'message' => 'FCM Push notification sent successfully']);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Failed to send FCM Push (check FCM_SERVER_KEY or fcm_token)'], 500);
+        }
+    }
+    
  
 }

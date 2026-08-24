@@ -42,6 +42,10 @@ Route::post('/attachments/{id}/delete', [ActivityController::class, 'deleteAttac
 Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
 Route::post('/cancel-deletion', [AuthController::class, 'cancelDeletion']);
 Route::post('/reactivate-activity', [AuthController::class, 'reactivateActivity']);
+Route::post('/snooze-activity', [AuthController::class, 'snoozeActivity']);
+
+Route::post('/save-fcm-token', [AuthController::class, 'saveFcmToken']);
+Route::post('/send-fcm-push', [AuthController::class, 'triggerFcmPush']);
 
 Route::post('/backup/export', [BackupController::class, 'export']);
 Route::post('/backup/import', [BackupController::class, 'import']);

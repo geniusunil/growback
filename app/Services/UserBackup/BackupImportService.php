@@ -2,10 +2,7 @@
 
 namespace App\Services\UserBackup;
 
-use App\Models\User;
-use App\Models\Activity;
-use App\Models\Attachment;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class BackupImportService
@@ -18,170 +15,359 @@ class BackupImportService
             return "Backup file not found.";
         }
 
-        $backup = json_decode(Storage::get($jsonPath), true);
+        $backup = json_decode(
+            Storage::get($jsonPath),
+            true
+        );
 
-        if (!$backup) {
+        if (!is_array($backup)) {
             return "Invalid backup file.";
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Restore Registered Users
-        |--------------------------------------------------------------------------
-        */
+        DB::beginTransaction();
 
-        foreach ($backup['users'] as $userData) {
+        try {
 
-            $user = User::updateOrCreate(
-                [
-                    'email' => $userData['user']['email']
-                ],
-                [
-                    'username' => $userData['user']['username'],
-                    'password' => Hash::make('12345678'),
-                    'email_verified_at' => $userData['user']['email_verified_at'],
-                ]
-            );
+            /*
+            |--------------------------------------------------------------------------
+            | Restore Registered Users
+            |--------------------------------------------------------------------------
+            */
 
-            foreach ($userData['activities'] as $activityData) {
+            foreach ($backup['users'] ?? [] as $userData) {
 
-                $activity = Activity::updateOrCreate(
+                $userData = $userData['user'];
 
+                /*
+                |--------------------------------------------------------------------------
+                | Preserve Original User ID
+                |--------------------------------------------------------------------------
+                */
+
+                DB::table('users')->updateOrInsert(
                     [
-                        'user_id' => $user->id,
-                        'title' => $activityData['title'],
+                        'id' => $userData['id'],
                     ],
-
                     [
-                        'guest_id'               => $activityData['guest_id'],
-                        'description'            => $activityData['description'],
-                        'category'               => $activityData['category'],
-                        'due_date'               => $activityData['due_date'],
-                        'is_completed'           => $activityData['is_completed'],
-                        'completed_at'           => $activityData['completed_at'],
-                        'reminder_times'         => $activityData['reminder_times'],
-                        'frequency_unit'         => $activityData['frequency_unit'],
-                        'frequency_value'        => $activityData['frequency_value'],
-                        'reminder_sound'         => $activityData['reminder_sound'],
-                        'custom_sound_path'      => $activityData['custom_sound_path'],
-                        'reminder_vibration'     => $activityData['reminder_vibration'],
-                        'priority'               => $activityData['priority'],
-                        'thumbnail'              => $activityData['thumbnail'],
-                        'show_in_drawer'         => $activityData['show_in_drawer'],
-                        'notification_sound'     => $activityData['notification_sound'],
-                        'notification_vibration' => $activityData['notification_vibration'],
-                        'show_full_screen'       => $activityData['show_full_screen'],
+                        'username' =>
+                            $userData['username'],
+
+                        'email' =>
+                            $userData['email'],
+
+                        'email_verified_at' =>
+                            $userData['email_verified_at'],
+
+                        'password' =>
+                            $userData['password'],
+
+                        'remember_token' =>
+                            $userData['remember_token'],
+
+                        'is_deletion_scheduled' =>
+                            $userData['is_deletion_scheduled'],
+
+                        'deletion_scheduled_at' =>
+                            $userData['deletion_scheduled_at'],
+
+                        'deletion_due_at' =>
+                            $userData['deletion_due_at'],
+
+                        'created_at' =>
+                            $userData['created_at'],
+
+                        'updated_at' =>
+                            $userData['updated_at'],
                     ]
                 );
-
-                if (!empty($activityData['attachments'])) {
-
-                    foreach ($activityData['attachments'] as $attachmentData) {
-
-                        Attachment::updateOrCreate(
-
-                            [
-                                'activity_id' => $activity->id,
-                                'file_name' => $attachmentData['file_name'],
-                            ],
-
-                            [
-                                'user_id' => $user->id,
-                                'guest_id' => $attachmentData['guest_id'],
-                                'file_size' => $attachmentData['file_size'],
-                            ]
-                        );
-                    }
-                }
             }
-        }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Restore Guest Activities
-        |--------------------------------------------------------------------------
-        */
+            /*
+            |--------------------------------------------------------------------------
+            | Restore User Activities
+            |--------------------------------------------------------------------------
+            */
 
-        if (!empty($backup['guests'])) {
+            foreach ($backup['users'] ?? [] as $userBackup) {
 
-            foreach ($backup['guests'] as $guestData) {
+                $originalUserId =
+                    $userBackup['user']['id'];
 
-                foreach ($guestData['activities'] as $activityData) {
+                foreach (
+                    $userBackup['activities'] ?? []
+                    as $activityData
+                ) {
 
-                    $activity = Activity::updateOrCreate(
-
-                        [
-                            'guest_id' => $guestData['guest_id'],
-                            'title' => $activityData['title'],
-                        ],
-
-                        [
-                            'user_id'                => null,
-                            'description'            => $activityData['description'],
-                            'category'               => $activityData['category'],
-                            'due_date'               => $activityData['due_date'],
-                            'is_completed'           => $activityData['is_completed'],
-                            'completed_at'           => $activityData['completed_at'],
-                            'reminder_times'         => $activityData['reminder_times'],
-                            'frequency_unit'         => $activityData['frequency_unit'],
-                            'frequency_value'        => $activityData['frequency_value'],
-                            'reminder_sound'         => $activityData['reminder_sound'],
-                            'custom_sound_path'      => $activityData['custom_sound_path'],
-                            'reminder_vibration'     => $activityData['reminder_vibration'],
-                            'priority'               => $activityData['priority'],
-                            'thumbnail'              => $activityData['thumbnail'],
-                            'show_in_drawer'         => $activityData['show_in_drawer'],
-                            'notification_sound'     => $activityData['notification_sound'],
-                            'notification_vibration' => $activityData['notification_vibration'],
-                            'show_full_screen'       => $activityData['show_full_screen'],
-                        ]
+                    $this->restoreActivity(
+                        $activityData,
+                        $originalUserId
                     );
-
-                    if (!empty($activityData['attachments'])) {
-
-                        foreach ($activityData['attachments'] as $attachmentData) {
-
-                            Attachment::updateOrCreate(
-
-                                [
-                                    'activity_id' => $activity->id,
-                                    'file_name' => $attachmentData['file_name'],
-                                ],
-
-                                [
-                                    'user_id' => null,
-                                    'guest_id' => $guestData['guest_id'],
-                                    'file_size' => $attachmentData['file_size'],
-                                ]
-                            );
-                        }
-                    }
                 }
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Restore Guest Activities
+            |--------------------------------------------------------------------------
+            */
+
+            foreach ($backup['guests'] ?? [] as $guestData) {
+
+                foreach (
+                    $guestData['activities'] ?? []
+                    as $activityData
+                ) {
+
+                    $this->restoreActivity(
+                        $activityData,
+                        null,
+                        $guestData['guest_id']
+                    );
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Restore Physical Files
+            |--------------------------------------------------------------------------
+            */
+
+            $this->restoreFiles(
+                basename($folderPath)
+            );
+
+            DB::commit();
+
+            return "Import completed.";
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            return "Import failed: " . $e->getMessage();
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Restore Files
-        |--------------------------------------------------------------------------
-        */
-
-        $this->restoreFiles(basename($folderPath));
-
-        return "Import completed.";
     }
 
+    /**
+     * Restore one activity and its attachments.
+     */
+    private function restoreActivity(
+        array $activityData,
+        ?int $userId = null,
+        ?string $guestId = null
+    ): void {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Determine Owner
+        |--------------------------------------------------------------------------
+        */
+
+        if ($guestId !== null) {
+
+            $activityUserId = null;
+            $activityGuestId = $guestId;
+
+        } else {
+
+            $activityUserId = $userId;
+            $activityGuestId = $activityData['guest_id'] ?? null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Restore Activity
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        | Original activity ID is preserved.
+        |
+        */
+
+        DB::table('activities')->updateOrInsert(
+            [
+                'id' => $activityData['id'],
+            ],
+            [
+                'user_id' =>
+                    $activityUserId,
+
+                'guest_id' =>
+                    $activityGuestId,
+
+                'title' =>
+                    $activityData['title'],
+
+                'description' =>
+                    $activityData['description'],
+
+                'category' =>
+                    $activityData['category'],
+
+                'duration_value' =>
+                    $activityData['duration_value'],
+
+                'duration_unit' =>
+                    $activityData['duration_unit'],
+
+                'due_date' =>
+                    $activityData['due_date'],
+
+                'is_completed' =>
+                    $activityData['is_completed'],
+
+                'completed_at' =>
+                    $activityData['completed_at'],
+
+                'reminder_times' =>
+                    $this->jsonValue(
+                        $activityData['reminder_times'] ?? null
+                    ),
+
+                'frequency_unit' =>
+                    $activityData['frequency_unit'],
+
+                'frequency_value' =>
+                    $activityData['frequency_value'],
+
+                'repeat_enabled' =>
+                    $activityData['repeat_enabled'],
+
+                'reminder_sound' =>
+                    $activityData['reminder_sound'],
+
+                'custom_sound_path' =>
+                    $activityData['custom_sound_path'],
+
+                'reminder_vibration' =>
+                    $activityData['reminder_vibration'],
+
+                'priority' =>
+                    $activityData['priority'],
+
+                'thumbnail' =>
+                    $activityData['thumbnail'],
+
+                'show_in_drawer' =>
+                    $activityData['show_in_drawer'],
+
+                'notification_sound' =>
+                    $activityData['notification_sound'],
+
+                'notification_vibration' =>
+                    $activityData['notification_vibration'],
+
+                'show_full_screen' =>
+                    $activityData['show_full_screen'],
+
+                'urls' =>
+                    $this->jsonValue(
+                        $activityData['urls'] ?? null
+                    ),
+
+                'created_at' =>
+                    $activityData['created_at'],
+
+                'updated_at' =>
+                    $activityData['updated_at'],
+
+                'deleted_at' =>
+                    $activityData['deleted_at'] ?? null,
+            ]
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Restore Attachments
+        |--------------------------------------------------------------------------
+        */
+
+        foreach (
+            $activityData['attachments'] ?? []
+            as $attachmentData
+        ) {
+
+            DB::table('attachments')->updateOrInsert(
+                [
+                    'id' => $attachmentData['id'],
+                ],
+                [
+                    'user_id' =>
+                        $guestId !== null
+                            ? null
+                            : $userId,
+
+                    'guest_id' =>
+                        $guestId !== null
+                            ? $guestId
+                            : ($attachmentData['guest_id'] ?? null),
+
+                    'activity_id' =>
+                        $activityData['id'],
+
+                    'file_name' =>
+                        $attachmentData['file_name'],
+
+                    'file_size' =>
+                        $attachmentData['file_size'],
+
+                    'created_at' =>
+                        $attachmentData['created_at'],
+
+                    'updated_at' =>
+                        $attachmentData['updated_at'],
+                ]
+            );
+        }
+    }
+
+    /**
+     * Convert array values to JSON for DB.
+     */
+    private function jsonValue($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            return $value;
+        }
+
+        return json_encode(
+            $value,
+            JSON_UNESCAPED_SLASHES
+        );
+    }
+
+    /**
+     * Restore thumbnails and attachments.
+     */
     private function restoreFiles(string $folderName): void
     {
-        Storage::disk('public')->makeDirectory('thumbnails');
-        Storage::disk('public')->makeDirectory('attachments');
+        Storage::disk('public')
+            ->makeDirectory('thumbnails');
 
-        $thumbnailFolder = 'backups/' . $folderName . '/thumbnails';
-        $attachmentFolder = 'backups/' . $folderName . '/attachments';
+        Storage::disk('public')
+            ->makeDirectory('attachments');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Thumbnails
+        |--------------------------------------------------------------------------
+        */
+
+        $thumbnailFolder =
+            'backups/' .
+            $folderName .
+            '/thumbnails';
 
         if (Storage::exists($thumbnailFolder)) {
 
-            foreach (Storage::files($thumbnailFolder) as $file) {
+            foreach (
+                Storage::files($thumbnailFolder)
+                as $file
+            ) {
 
                 Storage::disk('public')->put(
                     'thumbnails/' . basename($file),
@@ -190,9 +376,23 @@ class BackupImportService
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Attachments
+        |--------------------------------------------------------------------------
+        */
+
+        $attachmentFolder =
+            'backups/' .
+            $folderName .
+            '/attachments';
+
         if (Storage::exists($attachmentFolder)) {
 
-            foreach (Storage::files($attachmentFolder) as $file) {
+            foreach (
+                Storage::files($attachmentFolder)
+                as $file
+            ) {
 
                 Storage::disk('public')->put(
                     'attachments/' . basename($file),
