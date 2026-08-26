@@ -12,6 +12,7 @@ class BackupImportService
         $jsonPath = $folderPath . '/backup.json';
 
         if (!Storage::exists($jsonPath)) {
+
             return "Backup file not found.";
         }
 
@@ -21,6 +22,7 @@ class BackupImportService
         );
 
         if (!is_array($backup)) {
+
             return "Invalid backup file.";
         }
 
@@ -34,9 +36,9 @@ class BackupImportService
             |--------------------------------------------------------------------------
             */
 
-            foreach ($backup['users'] ?? [] as $userData) {
+            foreach ($backup['users'] ?? [] as $userBackup) {
 
-                $userData = $userData['user'];
+                $userData = $userBackup['user'];
 
                 /*
                 |--------------------------------------------------------------------------
@@ -46,7 +48,8 @@ class BackupImportService
 
                 DB::table('users')->updateOrInsert(
                     [
-                        'id' => $userData['id'],
+                        'id' =>
+                            $userData['id'],
                     ],
                     [
                         'username' =>
@@ -56,28 +59,37 @@ class BackupImportService
                             $userData['email'],
 
                         'email_verified_at' =>
-                            $userData['email_verified_at'],
+                            $userData['email_verified_at'] ?? null,
 
                         'password' =>
                             $userData['password'],
 
                         'remember_token' =>
-                            $userData['remember_token'],
+                            $userData['remember_token'] ?? null,
 
                         'is_deletion_scheduled' =>
-                            $userData['is_deletion_scheduled'],
+                            $userData['is_deletion_scheduled'] ?? false,
 
                         'deletion_scheduled_at' =>
-                            $userData['deletion_scheduled_at'],
+                            $userData['deletion_scheduled_at'] ?? null,
 
                         'deletion_due_at' =>
-                            $userData['deletion_due_at'],
+                            $userData['deletion_due_at'] ?? null,
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | FCM Token
+                        |--------------------------------------------------------------------------
+                        */
+
+                        'fcm_token' =>
+                            $userData['fcm_token'] ?? null,
 
                         'created_at' =>
-                            $userData['created_at'],
+                            $userData['created_at'] ?? now(),
 
                         'updated_at' =>
-                            $userData['updated_at'],
+                            $userData['updated_at'] ?? now(),
                     ]
                 );
             }
@@ -171,7 +183,9 @@ class BackupImportService
         } else {
 
             $activityUserId = $userId;
-            $activityGuestId = $activityData['guest_id'] ?? null;
+
+            $activityGuestId =
+                $activityData['guest_id'] ?? null;
         }
 
         /*
@@ -179,14 +193,14 @@ class BackupImportService
         | Restore Activity
         |--------------------------------------------------------------------------
         |
-        | IMPORTANT:
         | Original activity ID is preserved.
         |
         */
 
         DB::table('activities')->updateOrInsert(
             [
-                'id' => $activityData['id'],
+                'id' =>
+                    $activityData['id'],
             ],
             [
                 'user_id' =>
@@ -199,25 +213,25 @@ class BackupImportService
                     $activityData['title'],
 
                 'description' =>
-                    $activityData['description'],
+                    $activityData['description'] ?? null,
 
                 'category' =>
-                    $activityData['category'],
+                    $activityData['category'] ?? 'General',
 
                 'duration_value' =>
-                    $activityData['duration_value'],
+                    $activityData['duration_value'] ?? null,
 
                 'duration_unit' =>
-                    $activityData['duration_unit'],
+                    $activityData['duration_unit'] ?? null,
 
                 'due_date' =>
-                    $activityData['due_date'],
+                    $activityData['due_date'] ?? null,
 
                 'is_completed' =>
-                    $activityData['is_completed'],
+                    $activityData['is_completed'] ?? false,
 
                 'completed_at' =>
-                    $activityData['completed_at'],
+                    $activityData['completed_at'] ?? null,
 
                 'reminder_times' =>
                     $this->jsonValue(
@@ -225,40 +239,58 @@ class BackupImportService
                     ),
 
                 'frequency_unit' =>
-                    $activityData['frequency_unit'],
+                    $activityData['frequency_unit'] ?? 'days',
 
                 'frequency_value' =>
-                    $activityData['frequency_value'],
+                    $activityData['frequency_value'] ?? 1,
 
                 'repeat_enabled' =>
-                    $activityData['repeat_enabled'],
+                    $activityData['repeat_enabled'] ?? false,
 
                 'reminder_sound' =>
-                    $activityData['reminder_sound'],
+                    $activityData['reminder_sound'] ?? 'small',
 
                 'custom_sound_path' =>
-                    $activityData['custom_sound_path'],
+                    $activityData['custom_sound_path'] ?? null,
 
                 'reminder_vibration' =>
-                    $activityData['reminder_vibration'],
+                    $activityData['reminder_vibration'] ?? true,
 
                 'priority' =>
-                    $activityData['priority'],
+                    $activityData['priority'] ?? 'medium',
 
                 'thumbnail' =>
-                    $activityData['thumbnail'],
+                    $activityData['thumbnail'] ?? null,
 
                 'show_in_drawer' =>
-                    $activityData['show_in_drawer'],
+                    $activityData['show_in_drawer'] ?? true,
 
                 'notification_sound' =>
-                    $activityData['notification_sound'],
+                    $activityData['notification_sound'] ?? true,
 
                 'notification_vibration' =>
-                    $activityData['notification_vibration'],
+                    $activityData['notification_vibration'] ?? true,
 
                 'show_full_screen' =>
-                    $activityData['show_full_screen'],
+                    $activityData['show_full_screen'] ?? false,
+
+                /*
+                |--------------------------------------------------------------------------
+                | New Activity Fields
+                |--------------------------------------------------------------------------
+                */
+
+                'snoozed_until' =>
+                    $activityData['snoozed_until'] ?? null,
+
+                'is_mandatory_gap' =>
+                    $activityData['is_mandatory_gap'] ?? false,
+
+                'mandatory_gap_value' =>
+                    $activityData['mandatory_gap_value'] ?? 0,
+
+                'mandatory_gap_unit' =>
+                    $activityData['mandatory_gap_unit'] ?? 'minutes',
 
                 'urls' =>
                     $this->jsonValue(
@@ -266,10 +298,10 @@ class BackupImportService
                     ),
 
                 'created_at' =>
-                    $activityData['created_at'],
+                    $activityData['created_at'] ?? now(),
 
                 'updated_at' =>
-                    $activityData['updated_at'],
+                    $activityData['updated_at'] ?? now(),
 
                 'deleted_at' =>
                     $activityData['deleted_at'] ?? null,
@@ -289,7 +321,8 @@ class BackupImportService
 
             DB::table('attachments')->updateOrInsert(
                 [
-                    'id' => $attachmentData['id'],
+                    'id' =>
+                        $attachmentData['id'],
                 ],
                 [
                     'user_id' =>
@@ -300,7 +333,10 @@ class BackupImportService
                     'guest_id' =>
                         $guestId !== null
                             ? $guestId
-                            : ($attachmentData['guest_id'] ?? null),
+                            : (
+                                $attachmentData['guest_id']
+                                ?? null
+                            ),
 
                     'activity_id' =>
                         $activityData['id'],
@@ -309,13 +345,13 @@ class BackupImportService
                         $attachmentData['file_name'],
 
                     'file_size' =>
-                        $attachmentData['file_size'],
+                        $attachmentData['file_size'] ?? null,
 
                     'created_at' =>
-                        $attachmentData['created_at'],
+                        $attachmentData['created_at'] ?? now(),
 
                     'updated_at' =>
-                        $attachmentData['updated_at'],
+                        $attachmentData['updated_at'] ?? now(),
                 ]
             );
         }
@@ -327,10 +363,12 @@ class BackupImportService
     private function jsonValue($value): ?string
     {
         if ($value === null) {
+
             return null;
         }
 
         if (is_string($value)) {
+
             return $value;
         }
 

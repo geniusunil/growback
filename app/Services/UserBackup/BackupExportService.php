@@ -66,7 +66,7 @@ class BackupExportService
         */
 
         $backup = [
-            'version' => 2,
+            'version' => 3,
             'created_at' => now()->toDateTimeString(),
             'users' => [],
             'guests' => [],
@@ -83,12 +83,23 @@ class BackupExportService
             $backup['users'][] = [
 
                 'user' => [
+
                     'id' => $user->id,
-                    'username' => $user->username,
-                    'email' => $user->email,
-                    'email_verified_at' => $user->email_verified_at?->toDateTimeString(),
-                    'password' => $user->getRawOriginal('password'),
-                    'remember_token' => $user->getRawOriginal('remember_token'),
+
+                    'username' =>
+                        $user->username,
+
+                    'email' =>
+                        $user->email,
+
+                    'email_verified_at' =>
+                        $user->email_verified_at?->toDateTimeString(),
+
+                    'password' =>
+                        $user->getRawOriginal('password'),
+
+                    'remember_token' =>
+                        $user->getRawOriginal('remember_token'),
 
                     'is_deletion_scheduled' =>
                         (bool) $user->is_deletion_scheduled,
@@ -98,6 +109,9 @@ class BackupExportService
 
                     'deletion_due_at' =>
                         $user->deletion_due_at?->toDateTimeString(),
+
+                    'fcm_token' =>
+                        $user->fcm_token,
 
                     'created_at' =>
                         $user->created_at?->toDateTimeString(),
@@ -147,8 +161,12 @@ class BackupExportService
         foreach ($guestActivities as $guestId => $activities) {
 
             $backup['guests'][] = [
-                'guest_id' => $guestId,
-                'activities' => $this->formatActivities($activities),
+
+                'guest_id' =>
+                    $guestId,
+
+                'activities' =>
+                    $this->formatActivities($activities),
             ];
         }
 
@@ -162,6 +180,7 @@ class BackupExportService
             empty($backup['users']) &&
             empty($backup['guests'])
         ) {
+
             return 'No users or guests found.';
         }
 
@@ -178,18 +197,26 @@ class BackupExportService
         if (!empty($users)) {
 
             if ($users === 'all') {
+
                 $folderName = 'users_all';
+
             } else {
-                $folderName = 'users_' .
+
+                $folderName =
+                    'users_' .
                     str_replace(',', '_', $users);
             }
 
         } else {
 
             if ($guests === 'all') {
+
                 $folderName = 'guests_all';
+
             } else {
-                $folderName = 'guests_' .
+
+                $folderName =
+                    'guests_' .
                     str_replace(',', '_', $guests);
             }
         }
@@ -264,39 +291,53 @@ class BackupExportService
 
             $result[] = [
 
-                'id' => $activity->id,
+                'id' =>
+                    $activity->id,
 
-                'user_id' => $activity->user_id,
+                'user_id' =>
+                    $activity->user_id,
 
-                'guest_id' => $activity->guest_id,
+                'guest_id' =>
+                    $activity->guest_id,
 
-                'title' => $activity->title,
+                'title' =>
+                    $activity->title,
 
-                'description' => $activity->description,
+                'description' =>
+                    $activity->description,
 
-                'category' => $activity->category,
+                'category' =>
+                    $activity->category,
 
-                'duration_value' => $activity->duration_value,
+                'duration_value' =>
+                    $activity->duration_value,
 
-                'duration_unit' => $activity->duration_unit,
+                'duration_unit' =>
+                    $activity->duration_unit,
 
-                'due_date' => $activity->due_date?->toDateTimeString(),
+                'due_date' =>
+                    $activity->due_date?->toDateTimeString(),
 
-                'is_completed' => (bool) $activity->is_completed,
+                'is_completed' =>
+                    (bool) $activity->is_completed,
 
                 'completed_at' =>
                     $activity->completed_at?->toDateTimeString(),
 
-                'reminder_times' => $activity->reminder_times,
+                'reminder_times' =>
+                    $activity->reminder_times,
 
-                'frequency_unit' => $activity->frequency_unit,
+                'frequency_unit' =>
+                    $activity->frequency_unit,
 
-                'frequency_value' => $activity->frequency_value,
+                'frequency_value' =>
+                    $activity->frequency_value,
 
                 'repeat_enabled' =>
                     (bool) $activity->repeat_enabled,
 
-                'reminder_sound' => $activity->reminder_sound,
+                'reminder_sound' =>
+                    $activity->reminder_sound,
 
                 'custom_sound_path' =>
                     $activity->custom_sound_path,
@@ -304,9 +345,11 @@ class BackupExportService
                 'reminder_vibration' =>
                     (bool) $activity->reminder_vibration,
 
-                'priority' => $activity->priority,
+                'priority' =>
+                    $activity->priority,
 
-                'thumbnail' => $activity->thumbnail,
+                'thumbnail' =>
+                    $activity->thumbnail,
 
                 'show_in_drawer' =>
                     (bool) $activity->show_in_drawer,
@@ -320,7 +363,26 @@ class BackupExportService
                 'show_full_screen' =>
                     (bool) $activity->show_full_screen,
 
-                'urls' => $activity->urls,
+                /*
+                |--------------------------------------------------------------------------
+                | New Fields
+                |--------------------------------------------------------------------------
+                */
+
+                'snoozed_until' =>
+                    $activity->snoozed_until?->toDateTimeString(),
+
+                'is_mandatory_gap' =>
+                    (bool) $activity->is_mandatory_gap,
+
+                'mandatory_gap_value' =>
+                    $activity->mandatory_gap_value,
+
+                'mandatory_gap_unit' =>
+                    $activity->mandatory_gap_unit,
+
+                'urls' =>
+                    $activity->urls,
 
                 'created_at' =>
                     $activity->created_at?->toDateTimeString(),
@@ -352,17 +414,23 @@ class BackupExportService
 
             $result[] = [
 
-                'id' => $attachment->id,
+                'id' =>
+                    $attachment->id,
 
-                'user_id' => $attachment->user_id,
+                'user_id' =>
+                    $attachment->user_id,
 
-                'guest_id' => $attachment->guest_id,
+                'guest_id' =>
+                    $attachment->guest_id,
 
-                'activity_id' => $attachment->activity_id,
+                'activity_id' =>
+                    $attachment->activity_id,
 
-                'file_name' => $attachment->file_name,
+                'file_name' =>
+                    $attachment->file_name,
 
-                'file_size' => $attachment->file_size,
+                'file_size' =>
+                    $attachment->file_size,
 
                 'created_at' =>
                     $attachment->created_at?->toDateTimeString(),
