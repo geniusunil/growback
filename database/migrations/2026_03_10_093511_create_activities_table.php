@@ -26,6 +26,11 @@ return new class extends Migration
 
             $table->text('description')->nullable();
 
+            // Empty stomach fields
+            $table->integer('empty_stomach_value')->nullable();
+            $table->string('empty_stomach_unit')->nullable();
+            $table->string('empty_stomach_after')->nullable();
+
             $table->string('category')->default('General');
 
             $table->decimal('duration_value', 10, 2)->nullable();
@@ -44,7 +49,6 @@ return new class extends Migration
 
             $table->integer('frequency_value')->default(1);
 
-            // NEW FIELD
             $table->boolean('repeat_enabled')->default(false);
 
             $table->string('reminder_sound')->default('small');
@@ -64,16 +68,15 @@ return new class extends Migration
             $table->boolean('notification_vibration')->default(true);
 
             $table->boolean('show_full_screen')->default(false);
-            
-        
-    $table->timestamp('snoozed_until')->nullable();
-    
-     $table->boolean('is_mandatory_gap')->default(false);
+
+            $table->timestamp('snoozed_until')->nullable();
+
+            $table->boolean('is_mandatory_gap')->default(false);
+
             $table->integer('mandatory_gap_value')->default(0);
+
             $table->string('mandatory_gap_unit')->default('minutes');
 
-
-            // NEW FIELD
             $table->json('urls')->nullable();
 
             $table->timestamps();

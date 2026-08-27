@@ -10,67 +10,88 @@ use App\Models\Attachment;
 class Activity extends Model
 {
     use SoftDeletes;
-protected $fillable = [
-    'user_id',
-    'guest_id',
-    'title',
-    'description',
-    'category',
-    'reminder_times',
-    'frequency_unit',
-    'frequency_value',
 
-    // NEW
-    'repeat_enabled',
+    protected $fillable = [
+        'user_id',
+        'guest_id',
+        'title',
+        'description',
+        'category',
+        'reminder_times',
+        'frequency_unit',
+        'frequency_value',
 
-    'reminder_sound',
-    'reminder_vibration',
-    'priority',
-    'thumbnail',
-    'show_in_drawer',
-    'notification_sound',
-    'notification_vibration',
-    'show_full_screen',
-    'custom_sound_path',
-    'due_date',
-    'is_completed',
-    'completed_at',
-    'duration_value',
-    'duration_unit',
+        // Repeat
+        'repeat_enabled',
 
-    // NEW
-    'urls',
-     'is_mandatory_gap',
-    'mandatory_gap_value',
-    'mandatory_gap_unit',
-];
+        'reminder_sound',
+        'reminder_vibration',
+        'priority',
+        'thumbnail',
+        'show_in_drawer',
+        'notification_sound',
+        'notification_vibration',
+        'show_full_screen',
+        'custom_sound_path',
+        'due_date',
+        'is_completed',
+        'completed_at',
+        'duration_value',
+        'duration_unit',
 
+        // Empty stomach condition
+        'empty_stomach_value',
+        'empty_stomach_unit',
+        'empty_stomach_after',
+
+        // URLs
+        'urls',
+
+        // Mandatory gap
+        'is_mandatory_gap',
+        'mandatory_gap_value',
+        'mandatory_gap_unit',
+    ];
 
     protected $casts = [
         'reminder_times' => 'array',
+
         'reminder_vibration' => 'boolean',
         'show_in_drawer' => 'boolean',
         'notification_sound' => 'boolean',
         'notification_vibration' => 'boolean',
         'show_full_screen' => 'boolean',
-        'is_completed'         => 'boolean',
-       'due_date' => 'datetime',
-        'completed_at'         => 'datetime',
+
+        'is_completed' => 'boolean',
+        'repeat_enabled' => 'boolean',
+
+        'due_date' => 'datetime',
+        'completed_at' => 'datetime',
+
         'duration_value' => 'float',
-    'repeat_enabled' => 'boolean',
-    'urls' => 'array',
+
+        // Empty stomach condition
+        'empty_stomach_value' => 'integer',
+        'empty_stomach_unit' => 'string',
+        'empty_stomach_after' => 'string',
+
+        // URLs
+        'urls' => 'array',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
     }
+
     public function attachments()
     {
         return $this->hasMany(Attachment::class);
     }
 
-    protected $appends = ['thumbnail_url'];
+    protected $appends = [
+        'thumbnail_url'
+    ];
 
     public function getThumbnailUrlAttribute()
     {
