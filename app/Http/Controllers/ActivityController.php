@@ -369,7 +369,8 @@ class ActivityController extends Controller
                 'nullable|string|in:can,cannot',
 
                 'time_ranges' =>
-                'nullable|array',
+                'nullable|array|max:3',
+
 
                 'time_ranges.*.start' =>
                 'required_with:time_ranges.*.end|date_format:H:i',
@@ -391,9 +392,13 @@ class ActivityController extends Controller
                 'nullable|array',
 
                 'weekdays.*' =>
-                'integer',
+                'integer|between:0,6',
 
 
+
+                /*
+ * Public Holiday Restriction
+ */
                 /*
  * Public Holiday Restriction
  */
@@ -402,6 +407,10 @@ class ActivityController extends Controller
 
                 'holiday_mode' =>
                 'nullable|string|in:can,cannot',
+
+                'holiday_country' =>
+                'nullable|string|size:2',
+
             ]);
 
 
@@ -799,7 +808,8 @@ class ActivityController extends Controller
                     'nullable|string|in:can,cannot',
 
                     'time_ranges' =>
-                    'nullable|array',
+                    'nullable|array|max:3',
+
 
                     'time_ranges.*.start' =>
                     'required_with:time_ranges.*.end|date_format:H:i',
@@ -819,9 +829,10 @@ class ActivityController extends Controller
 
                     'weekdays' =>
                     'nullable|array',
-
                     'weekdays.*' =>
-                    'integer',
+                    'integer|between:0,6',
+
+
 
 
                     /*
@@ -832,6 +843,10 @@ class ActivityController extends Controller
 
                     'holiday_mode' =>
                     'nullable|string|in:can,cannot',
+
+                    'holiday_country' =>
+                    'nullable|string|size:2',
+
                 ]
             );
 

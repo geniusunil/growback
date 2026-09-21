@@ -62,6 +62,8 @@ class Activity extends Model
 
         'holiday_enabled',
         'holiday_mode',
+        'holiday_country',
+
     ];
 
     protected $casts = [
@@ -99,6 +101,8 @@ class Activity extends Model
         'weekdays' => 'array',
 
         'holiday_enabled' => 'boolean',
+        'holiday_country' => 'string',
+
     ];
 
     public function user()
