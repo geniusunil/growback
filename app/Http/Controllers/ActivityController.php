@@ -14,7 +14,42 @@ use App\Models\User;
 class ActivityController extends Controller
 {
     /**
+     * Check whether the user's account is scheduled for deletion.
+     *
+     * Users with deletion_requested = true can only:
+     * - View existing information
+     * - Cancel account deletion
+     */
+    private function accountDeletionRequested($userId): bool
+    {
+        if (!$userId) {
+            return false;
+        }
+
+        return User::where('id', $userId)
+            ->where('deletion_requested', true)
+            ->exists();
+    }
+
+    /**
+     * Standard response when an action is blocked
+     * because the account is scheduled for deletion.
+     */
+    private function deletionBlockedResponse()
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Account is scheduled for deletion.'
+        ], 403);
+    }
+
+
+
+    /**
      * Display a listing of activities for a user/guest.
+     *
+     * READ-ONLY:
+     * Users scheduled for deletion can still view activities.
      */
     public function index(Request $request)
     {
@@ -57,9 +92,7 @@ class ActivityController extends Controller
                 $duration = round($duration, 2);
 
                 // Priority weight
-                $priorityValue = match (
-                    strtolower($activity->priority ?? 'medium')
-                ) {
+                $priorityValue = match (strtolower($activity->priority ?? 'medium')) {
                     'high' => 1,
                     'medium' => 2,
                     'low' => 3,
@@ -104,8 +137,12 @@ class ActivityController extends Controller
     }
 
 
+
+
     /**
      * Mark activity as active again.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function unmarkComplete($id)
     {
@@ -117,6 +154,11 @@ class ActivityController extends Controller
                     'success' => false,
                     'message' => 'Activity not found'
                 ], 404);
+            }
+
+            // Account deletion restriction
+            if ($this->accountDeletionRequested($activity->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
             $activity->update([
@@ -140,6 +182,9 @@ class ActivityController extends Controller
 
     /**
      * Show a single activity.
+     *
+     * READ-ONLY:
+     * Users scheduled for deletion can still view activities.
      */
     public function show($id)
     {
@@ -168,12 +213,25 @@ class ActivityController extends Controller
 
     /**
      * Store a newly created activity in storage.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function store(Request $request)
     {
         Log::info('Activity store request arrived', $request->all());
 
         try {
+
+            /*
+             * Account deletion restriction
+             *
+             * A user whose account is scheduled for deletion
+             * cannot create a new activity.
+             */
+            if ($this->accountDeletionRequested($request->user_id)) {
+                return $this->deletionBlockedResponse();
+            }
+
 
             $validator = Validator::make($request->all(), [
 
@@ -227,79 +285,123 @@ class ActivityController extends Controller
                 'reminder_times' => 'nullable|array',
 
                 'frequency_unit' =>
-                    'nullable|string|in:none,minutes,hours,days,weeks,months,years',
+                'nullable|string|in:none,minutes,hours,days,weeks,months,years',
 
                 'frequency_value' =>
-                    'nullable|integer|min:0',
+                'nullable|integer|min:0',
 
 
                 /*
                  * Mandatory Gap
                  */
                 'is_mandatory_gap' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 'mandatory_gap_value' =>
-                    'nullable|integer|min:0',
+                'nullable|integer|min:0',
 
                 'mandatory_gap_unit' =>
-                    'nullable|string|in:minutes,hours,days,weeks,years',
+                'nullable|string|in:minutes,hours,days,weeks,years',
 
 
                 /*
                  * Empty Stomach Condition
                  */
                 'empty_stomach_value' =>
-                    'nullable|integer|min:0',
+                'nullable|integer|min:0',
 
                 'empty_stomach_unit' =>
-                    'nullable|string',
+                'nullable|string',
 
                 'empty_stomach_after' =>
-                    'nullable|string',
+                'nullable|string',
 
 
                 'reminder_sound' =>
-                    'nullable|string|in:continuous,small,none',
+                'nullable|string|in:continuous,small,none',
 
                 'reminder_vibration' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 'show_in_drawer' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 'notification_sound' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 'notification_vibration' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 'show_full_screen' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 'custom_sound_path' =>
-                    'nullable|string',
+                'nullable|string',
 
                 'duration_value' =>
-                    'nullable|numeric|min:0',
+                'nullable|numeric|min:0',
 
                 'duration_unit' =>
-                    'nullable|in:none,minutes,hours,days,weeks,months,years',
+                'nullable|in:none,minutes,hours,days,weeks,months,years',
 
                 'due_date' =>
-                    'nullable|date',
+                'nullable|date',
 
                 'repeat_enabled' =>
-                    'nullable|boolean',
+                'nullable|boolean',
 
                 /*
                  * URLs
                  */
                 'urls' =>
-                    'nullable|array',
+                'nullable|array',
 
                 'urls.*' =>
-                    'url|max:2048',
+                'url|max:2048',
+
+                /*
+ * Time Window Restriction
+ */
+                'time_range_enabled' =>
+                'nullable|boolean',
+
+                'time_range_mode' =>
+                'nullable|string|in:can,cannot',
+
+                'time_ranges' =>
+                'nullable|array',
+
+                'time_ranges.*.start' =>
+                'required_with:time_ranges.*.end|date_format:H:i',
+
+                'time_ranges.*.end' =>
+                'required_with:time_ranges.*.start|date_format:H:i',
+
+
+                /*
+ * Days of Week Restriction
+ */
+                'weekday_enabled' =>
+                'nullable|boolean',
+
+                'weekday_mode' =>
+                'nullable|string|in:can,cannot',
+
+                'weekdays' =>
+                'nullable|array',
+
+                'weekdays.*' =>
+                'integer',
+
+
+                /*
+ * Public Holiday Restriction
+ */
+                'holiday_enabled' =>
+                'nullable|boolean',
+
+                'holiday_mode' =>
+                'nullable|string|in:can,cannot',
             ]);
 
 
@@ -319,7 +421,7 @@ class ActivityController extends Controller
                             return response()->json([
                                 'success' => false,
                                 'message' =>
-                                    "Invalid file format: {$file->getClientOriginalName()}",
+                                "Invalid file format: {$file->getClientOriginalName()}",
                                 'errors' => $errors
                             ], 422);
                         }
@@ -354,7 +456,7 @@ class ActivityController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' =>
-                            'Total attachment size cannot exceed 10 MB'
+                        'Total attachment size cannot exceed 10 MB'
                     ], 422);
                 }
             }
@@ -386,7 +488,7 @@ class ActivityController extends Controller
                             return response()->json([
                                 'success' => false,
                                 'message' =>
-                                    'Reminder time cannot be in the past.'
+                                'Reminder time cannot be in the past.'
                             ], 422);
                         }
                     }
@@ -433,19 +535,19 @@ class ActivityController extends Controller
 
                     Attachment::create([
                         'user_id' =>
-                            $activity->user_id,
+                        $activity->user_id,
 
                         'guest_id' =>
-                            $activity->guest_id,
+                        $activity->guest_id,
 
                         'activity_id' =>
-                            $activity->id,
+                        $activity->id,
 
                         'file_name' =>
-                            $fileName,
+                        $fileName,
 
                         'file_size' =>
-                            $file->getSize(),
+                        $file->getSize(),
                     ]);
                 }
             }
@@ -454,11 +556,10 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Activity created successfully',
+                'Activity created successfully',
                 'activity' =>
-                    $activity->load('attachments')
+                $activity->load('attachments')
             ], 201);
-
         } catch (\Exception $e) {
 
             Log::error(
@@ -469,7 +570,7 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => false,
                 'message' =>
-                    'Failed to create activity: ' .
+                'Failed to create activity: ' .
                     $e->getMessage()
             ], 500);
         }
@@ -478,6 +579,8 @@ class ActivityController extends Controller
 
     /**
      * Update an existing activity.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function update(Request $request, $id)
     {
@@ -490,8 +593,16 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Activity not found'
+                    'Activity not found'
                 ], 404);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($activity->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -517,13 +628,13 @@ class ActivityController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' =>
-                            'Invalid reminder_times format.'
+                        'Invalid reminder_times format.'
                     ], 422);
                 }
 
                 $request->merge([
                     'reminder_times' =>
-                        $decodedReminderTimes
+                    $decodedReminderTimes
                 ]);
             }
 
@@ -533,22 +644,22 @@ class ActivityController extends Controller
                 [
 
                     'title' =>
-                        'required|string|max:255',
+                    'required|string|max:255',
 
                     'description' =>
-                        'nullable|string',
+                    'nullable|string',
 
                     'category' =>
-                        'nullable|string',
+                    'nullable|string',
 
                     'priority' =>
-                        'required|string|in:high,medium,low',
+                    'required|string|in:high,medium,low',
 
                     'thumbnail' =>
-                        'nullable|image|mimes:jpg,jpeg,png,webp',
+                    'nullable|image|mimes:jpg,jpeg,png,webp',
 
                     'attachments' =>
-                        'nullable|array|max:5',
+                    'nullable|array|max:5',
 
                     'attachments.*' => [
                         'file',
@@ -594,89 +705,133 @@ class ActivityController extends Controller
                     ],
 
                     'reminder_times' =>
-                        'nullable|array',
+                    'nullable|array',
 
                     'frequency_unit' =>
-                        'nullable|string|in:none,minutes,hours,days,weeks,months,years',
+                    'nullable|string|in:none,minutes,hours,days,weeks,months,years',
 
                     'frequency_value' =>
-                        'nullable|integer|min:0',
+                    'nullable|integer|min:0',
 
 
                     /*
                      * Mandatory Gap
                      */
                     'is_mandatory_gap' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'mandatory_gap_value' =>
-                        'nullable|integer|min:0',
+                    'nullable|integer|min:0',
 
                     'mandatory_gap_unit' =>
-                        'nullable|string|in:minutes,hours,days,weeks,years',
+                    'nullable|string|in:minutes,hours,days,weeks,years',
 
 
                     /*
                      * Empty Stomach Condition
                      */
                     'empty_stomach_value' =>
-                        'nullable|integer|min:0',
+                    'nullable|integer|min:0',
 
                     'empty_stomach_unit' =>
-                        'nullable|string',
+                    'nullable|string',
 
                     'empty_stomach_after' =>
-                        'nullable|string',
+                    'nullable|string',
 
 
                     'reminder_sound' =>
-                        'nullable|string|in:continuous,small,none',
+                    'nullable|string|in:continuous,small,none',
 
                     'reminder_vibration' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'show_in_drawer' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'notification_sound' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'notification_vibration' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'show_full_screen' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'custom_sound_path' =>
-                        'nullable|string',
+                    'nullable|string',
 
                     'duration_value' =>
-                        'nullable|numeric|min:0',
+                    'nullable|numeric|min:0',
 
                     'duration_unit' =>
-                        'nullable|in:none,minutes,hours,days,weeks,months,years',
+                    'nullable|in:none,minutes,hours,days,weeks,months,years',
 
                     'due_date' =>
-                        'nullable|date',
+                    'nullable|date',
 
                     'is_completed' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
                     'completed_at' =>
-                        'nullable|date',
+                    'nullable|date',
 
                     'repeat_enabled' =>
-                        'nullable|boolean',
+                    'nullable|boolean',
 
 
                     /*
                      * URLs
                      */
                     'urls' =>
-                        'nullable|array',
+                    'nullable|array',
 
                     'urls.*' =>
-                        'url|max:2048',
+                    'url|max:2048',
+
+                    /*
+ * Time Window Restriction
+ */
+                    'time_range_enabled' =>
+                    'nullable|boolean',
+
+                    'time_range_mode' =>
+                    'nullable|string|in:can,cannot',
+
+                    'time_ranges' =>
+                    'nullable|array',
+
+                    'time_ranges.*.start' =>
+                    'required_with:time_ranges.*.end|date_format:H:i',
+
+                    'time_ranges.*.end' =>
+                    'required_with:time_ranges.*.start|date_format:H:i',
+
+
+                    /*
+ * Days of Week Restriction
+ */
+                    'weekday_enabled' =>
+                    'nullable|boolean',
+
+                    'weekday_mode' =>
+                    'nullable|string|in:can,cannot',
+
+                    'weekdays' =>
+                    'nullable|array',
+
+                    'weekdays.*' =>
+                    'integer',
+
+
+                    /*
+ * Public Holiday Restriction
+ */
+                    'holiday_enabled' =>
+                    'nullable|boolean',
+
+                    'holiday_mode' =>
+                    'nullable|string|in:can,cannot',
                 ]
             );
 
@@ -701,9 +856,9 @@ class ActivityController extends Controller
                             return response()->json([
                                 'success' => false,
                                 'message' =>
-                                    "Invalid file format: {$file->getClientOriginalName()}",
+                                "Invalid file format: {$file->getClientOriginalName()}",
                                 'errors' =>
-                                    $errors
+                                $errors
                             ], 422);
                         }
                     }
@@ -712,9 +867,9 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Validation failed',
+                    'Validation failed',
                     'errors' =>
-                        $errors
+                    $errors
                 ], 422);
             }
 
@@ -743,7 +898,7 @@ class ActivityController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' =>
-                            'Total attachment size cannot exceed 10 MB'
+                        'Total attachment size cannot exceed 10 MB'
                     ], 422);
                 }
             }
@@ -794,7 +949,7 @@ class ActivityController extends Controller
                             return response()->json([
                                 'success' => false,
                                 'message' =>
-                                    'Reminder time cannot be in the past.'
+                                'Reminder time cannot be in the past.'
                             ], 422);
                         }
                     }
@@ -814,10 +969,10 @@ class ActivityController extends Controller
                 if (
                     $activity->thumbnail &&
                     Storage::disk('public')
-                        ->exists(
-                            'thumbnails/' .
-                                $activity->thumbnail
-                        )
+                    ->exists(
+                        'thumbnails/' .
+                            $activity->thumbnail
+                    )
                 ) {
 
                     Storage::disk('public')
@@ -839,10 +994,10 @@ class ActivityController extends Controller
                 if (
                     $activity->thumbnail &&
                     Storage::disk('public')
-                        ->exists(
-                            'thumbnails/' .
-                                $activity->thumbnail
-                        )
+                    ->exists(
+                        'thumbnails/' .
+                            $activity->thumbnail
+                    )
                 ) {
 
                     Storage::disk('public')
@@ -854,10 +1009,10 @@ class ActivityController extends Controller
 
                 $path =
                     $request->file('thumbnail')
-                        ->store(
-                            'thumbnails',
-                            'public'
-                        );
+                    ->store(
+                        'thumbnails',
+                        'public'
+                    );
 
                 $data['thumbnail'] =
                     basename($path);
@@ -891,19 +1046,19 @@ class ActivityController extends Controller
 
                     Attachment::create([
                         'user_id' =>
-                            $activity->user_id,
+                        $activity->user_id,
 
                         'guest_id' =>
-                            $activity->guest_id,
+                        $activity->guest_id,
 
                         'activity_id' =>
-                            $activity->id,
+                        $activity->id,
 
                         'file_name' =>
-                            $fileName,
+                        $fileName,
 
                         'file_size' =>
-                            $file->getSize(),
+                        $file->getSize(),
                     ]);
                 }
             }
@@ -912,11 +1067,10 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Activity updated successfully',
+                'Activity updated successfully',
                 'activity' =>
-                    $activity->load('attachments')
+                $activity->load('attachments')
             ]);
-
         } catch (\Exception $e) {
 
             Log::error(
@@ -927,7 +1081,7 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => false,
                 'message' =>
-                    'Failed to update activity: ' .
+                'Failed to update activity: ' .
                     $e->getMessage()
             ], 500);
         }
@@ -936,6 +1090,8 @@ class ActivityController extends Controller
 
     /**
      * Delete an attachment.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function deleteAttachment($id)
     {
@@ -949,8 +1105,16 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Attachment not found'
+                    'Attachment not found'
                 ], 404);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($attachment->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -959,10 +1123,10 @@ class ActivityController extends Controller
              */
             if (
                 Storage::disk('public')
-                    ->exists(
-                        'attachments/' .
-                            $attachment->file_name
-                    )
+                ->exists(
+                    'attachments/' .
+                        $attachment->file_name
+                )
             ) {
 
                 Storage::disk('public')
@@ -982,15 +1146,14 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Attachment deleted successfully'
+                'Attachment deleted successfully'
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }
@@ -998,6 +1161,8 @@ class ActivityController extends Controller
 
     /**
      * Mark an activity as permanently completed.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function markComplete($id)
     {
@@ -1011,8 +1176,16 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Activity not found'
+                    'Activity not found'
                 ], 404);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($activity->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -1034,17 +1207,16 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Activity marked as completed',
+                'Activity marked as completed',
                 'activity' =>
-                    $activity->fresh()
+                $activity->fresh()
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }
@@ -1052,6 +1224,8 @@ class ActivityController extends Controller
 
     /**
      * Soft-delete an activity.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function destroy($id)
     {
@@ -1069,8 +1243,16 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Activity not found'
+                    'Activity not found'
                 ], 404);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($activity->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -1083,17 +1265,16 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Activity moved to trash',
+                'Activity moved to trash',
                 'deleted_at' =>
-                    $activity->deleted_at
+                $activity->deleted_at
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    'Failed to delete activity: ' .
+                'Failed to delete activity: ' .
                     $e->getMessage()
             ], 500);
         }
@@ -1102,6 +1283,9 @@ class ActivityController extends Controller
 
     /**
      * List soft-deleted activities.
+     *
+     * READ-ONLY:
+     * Users scheduled for deletion can still view trash.
      */
     public function trash(Request $request)
     {
@@ -1118,49 +1302,48 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Missing ID'
+                    'Missing ID'
                 ], 400);
             }
 
 
             $activities =
                 Activity::with('attachments')
-                    ->onlyTrashed()
-                    ->when(
-                        $user_id,
-                        fn($q) =>
-                        $q->where(
-                            'user_id',
-                            $user_id
-                        )
+                ->onlyTrashed()
+                ->when(
+                    $user_id,
+                    fn($q) =>
+                    $q->where(
+                        'user_id',
+                        $user_id
                     )
-                    ->when(
-                        $guest_id,
-                        fn($q) =>
-                        $q->where(
-                            'guest_id',
-                            $guest_id
-                        )
+                )
+                ->when(
+                    $guest_id,
+                    fn($q) =>
+                    $q->where(
+                        'guest_id',
+                        $guest_id
                     )
-                    ->orderBy(
-                        'deleted_at',
-                        'desc'
-                    )
-                    ->get();
+                )
+                ->orderBy(
+                    'deleted_at',
+                    'desc'
+                )
+                ->get();
 
 
             return response()->json([
                 'success' => true,
                 'activities' =>
-                    $activities
+                $activities
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }
@@ -1168,6 +1351,8 @@ class ActivityController extends Controller
 
     /**
      * Restore a trashed activity.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function restore($id)
     {
@@ -1175,15 +1360,23 @@ class ActivityController extends Controller
 
             $activity =
                 Activity::onlyTrashed()
-                    ->find($id);
+                ->find($id);
 
             if (!$activity) {
 
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Activity not found in trash'
+                    'Activity not found in trash'
                 ], 404);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($activity->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -1193,17 +1386,16 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Activity restored',
+                'Activity restored',
                 'activity' =>
-                    $activity
+                $activity
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }
@@ -1211,6 +1403,8 @@ class ActivityController extends Controller
 
     /**
      * Permanently delete a trashed activity.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function forceDelete($id)
     {
@@ -1218,16 +1412,24 @@ class ActivityController extends Controller
 
             $activity =
                 Activity::with('attachments')
-                    ->onlyTrashed()
-                    ->find($id);
+                ->onlyTrashed()
+                ->find($id);
 
             if (!$activity) {
 
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Activity not found in trash'
+                    'Activity not found in trash'
                 ], 404);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($activity->user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -1237,10 +1439,10 @@ class ActivityController extends Controller
             if (
                 $activity->thumbnail &&
                 Storage::disk('public')
-                    ->exists(
-                        'thumbnails/' .
-                            $activity->thumbnail
-                    )
+                ->exists(
+                    'thumbnails/' .
+                        $activity->thumbnail
+                )
             ) {
 
                 Storage::disk('public')
@@ -1261,10 +1463,10 @@ class ActivityController extends Controller
 
                 if (
                     Storage::disk('public')
-                        ->exists(
-                            'attachments/' .
-                                $attachment->file_name
-                        )
+                    ->exists(
+                        'attachments/' .
+                            $attachment->file_name
+                    )
                 ) {
 
                     Storage::disk('public')
@@ -1285,15 +1487,14 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'Activity permanently deleted'
+                'Activity permanently deleted'
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }
@@ -1301,6 +1502,8 @@ class ActivityController extends Controller
 
     /**
      * Bulk restore all trashed activities.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function restoreAll(Request $request)
     {
@@ -1317,8 +1520,16 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Missing ID'
+                    'Missing ID'
                 ], 400);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
@@ -1345,15 +1556,14 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'All activities restored'
+                'All activities restored'
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }
@@ -1361,6 +1571,8 @@ class ActivityController extends Controller
 
     /**
      * Bulk permanently delete all trashed activities.
+     *
+     * BLOCKED when account deletion is requested.
      */
     public function forceDeleteAll(Request $request)
     {
@@ -1377,31 +1589,39 @@ class ActivityController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' =>
-                        'Missing ID'
+                    'Missing ID'
                 ], 400);
+            }
+
+
+            /*
+             * Account deletion restriction
+             */
+            if ($this->accountDeletionRequested($user_id)) {
+                return $this->deletionBlockedResponse();
             }
 
 
             $activities =
                 Activity::with('attachments')
-                    ->onlyTrashed()
-                    ->when(
-                        $user_id,
-                        fn($q) =>
-                        $q->where(
-                            'user_id',
-                            $user_id
-                        )
+                ->onlyTrashed()
+                ->when(
+                    $user_id,
+                    fn($q) =>
+                    $q->where(
+                        'user_id',
+                        $user_id
                     )
-                    ->when(
-                        $guest_id,
-                        fn($q) =>
-                        $q->where(
-                            'guest_id',
-                            $guest_id
-                        )
+                )
+                ->when(
+                    $guest_id,
+                    fn($q) =>
+                    $q->where(
+                        'guest_id',
+                        $guest_id
                     )
-                    ->get();
+                )
+                ->get();
 
 
             foreach (
@@ -1415,10 +1635,10 @@ class ActivityController extends Controller
                 if (
                     $activity->thumbnail &&
                     Storage::disk('public')
-                        ->exists(
-                            'thumbnails/' .
-                                $activity->thumbnail
-                        )
+                    ->exists(
+                        'thumbnails/' .
+                            $activity->thumbnail
+                    )
                 ) {
 
                     Storage::disk('public')
@@ -1439,10 +1659,10 @@ class ActivityController extends Controller
 
                     if (
                         Storage::disk('public')
-                            ->exists(
-                                'attachments/' .
-                                    $attachment->file_name
-                            )
+                        ->exists(
+                            'attachments/' .
+                                $attachment->file_name
+                        )
                     ) {
 
                         Storage::disk('public')
@@ -1464,15 +1684,14 @@ class ActivityController extends Controller
             return response()->json([
                 'success' => true,
                 'message' =>
-                    'All activities permanently deleted'
+                'All activities permanently deleted'
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
                 'success' => false,
                 'message' =>
-                    $e->getMessage()
+                $e->getMessage()
             ], 500);
         }
     }

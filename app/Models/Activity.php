@@ -51,6 +51,17 @@ class Activity extends Model
         'is_mandatory_gap',
         'mandatory_gap_value',
         'mandatory_gap_unit',
+
+        'time_range_enabled',
+        'time_range_mode',
+        'time_ranges',
+
+        'weekday_enabled',
+        'weekday_mode',
+        'weekdays',
+
+        'holiday_enabled',
+        'holiday_mode',
     ];
 
     protected $casts = [
@@ -77,6 +88,17 @@ class Activity extends Model
 
         // URLs
         'urls' => 'array',
+
+
+
+        // Restriction fields
+        'time_range_enabled' => 'boolean',
+        'time_ranges' => 'array',
+
+        'weekday_enabled' => 'boolean',
+        'weekdays' => 'array',
+
+        'holiday_enabled' => 'boolean',
     ];
 
     public function user()
