@@ -360,56 +360,51 @@ class ActivityController extends Controller
                 'url|max:2048',
 
                 /*
- * Time Window Restriction
+ * Time Window
  */
-                'time_range_enabled' =>
+                'time_window_enabled' =>
                 'nullable|boolean',
 
-                'time_range_mode' =>
+                'time_window_mode' =>
                 'nullable|string|in:can,cannot',
 
-                'time_ranges' =>
+                'time_window_ranges' =>
                 'nullable|array|max:3',
 
+                'time_window_ranges.*.from' =>
+                'required_with:time_window_ranges|string|date_format:H:i',
 
-                'time_ranges.*.start' =>
-                'required_with:time_ranges.*.end|date_format:H:i',
-
-                'time_ranges.*.end' =>
-                'required_with:time_ranges.*.start|date_format:H:i',
+                'time_window_ranges.*.to' =>
+                'required_with:time_window_ranges|string|date_format:H:i',
 
 
                 /*
- * Days of Week Restriction
+ * Days of Week
  */
-                'weekday_enabled' =>
+                'days_of_week_enabled' =>
                 'nullable|boolean',
 
-                'weekday_mode' =>
+                'days_of_week_mode' =>
                 'nullable|string|in:can,cannot',
 
-                'weekdays' =>
+                'days_of_week' =>
                 'nullable|array',
 
-                'weekdays.*' =>
-                'integer|between:0,6',
-
+                'days_of_week.*' =>
+                'string|in:mon,tue,wed,thu,fri,sat,sun',
 
 
                 /*
- * Public Holiday Restriction
+ * Public Holidays
  */
-                /*
- * Public Holiday Restriction
- */
-                'holiday_enabled' =>
+                'public_holidays_enabled' =>
                 'nullable|boolean',
 
-                'holiday_mode' =>
+                'public_holidays_mode' =>
                 'nullable|string|in:can,cannot',
 
-                'holiday_country' =>
-                'nullable|string|size:2',
+
+
 
             ]);
 
@@ -799,53 +794,51 @@ class ActivityController extends Controller
                     'url|max:2048',
 
                     /*
- * Time Window Restriction
+ * Time Window
  */
-                    'time_range_enabled' =>
+                    'time_window_enabled' =>
                     'nullable|boolean',
 
-                    'time_range_mode' =>
+                    'time_window_mode' =>
                     'nullable|string|in:can,cannot',
 
-                    'time_ranges' =>
+                    'time_window_ranges' =>
                     'nullable|array|max:3',
 
+                    'time_window_ranges.*.from' =>
+                    'required_with:time_window_ranges|string|date_format:H:i',
 
-                    'time_ranges.*.start' =>
-                    'required_with:time_ranges.*.end|date_format:H:i',
-
-                    'time_ranges.*.end' =>
-                    'required_with:time_ranges.*.start|date_format:H:i',
+                    'time_window_ranges.*.to' =>
+                    'required_with:time_window_ranges|string|date_format:H:i',
 
 
                     /*
- * Days of Week Restriction
+ * Days of Week
  */
-                    'weekday_enabled' =>
+                    'days_of_week_enabled' =>
                     'nullable|boolean',
 
-                    'weekday_mode' =>
+                    'days_of_week_mode' =>
                     'nullable|string|in:can,cannot',
 
-                    'weekdays' =>
+                    'days_of_week' =>
                     'nullable|array',
-                    'weekdays.*' =>
-                    'integer|between:0,6',
 
-
+                    'days_of_week.*' =>
+                    'string|in:mon,tue,wed,thu,fri,sat,sun',
 
 
                     /*
- * Public Holiday Restriction
+ * Public Holidays
  */
-                    'holiday_enabled' =>
+                    'public_holidays_enabled' =>
                     'nullable|boolean',
 
-                    'holiday_mode' =>
+                    'public_holidays_mode' =>
                     'nullable|string|in:can,cannot',
 
-                    'holiday_country' =>
-                    'nullable|string|size:2',
+                
+
 
                 ]
             );

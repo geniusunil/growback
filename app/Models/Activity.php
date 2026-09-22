@@ -52,17 +52,23 @@ class Activity extends Model
         'mandatory_gap_value',
         'mandatory_gap_unit',
 
-        'time_range_enabled',
-        'time_range_mode',
-        'time_ranges',
+        /*
+     * Time Window
+     */
+        'time_window_enabled' => 'boolean',
+        'time_window_ranges' => 'array',
 
-        'weekday_enabled',
-        'weekday_mode',
-        'weekdays',
+        /*
+     * Days
+     */
+        'days_of_week_enabled' => 'boolean',
+        'days_of_week' => 'array',
 
-        'holiday_enabled',
-        'holiday_mode',
-        'holiday_country',
+        /*
+     * Public Holidays
+     */
+        'public_holidays_enabled' => 'boolean',
+
 
     ];
 
@@ -91,17 +97,16 @@ class Activity extends Model
         // URLs
         'urls' => 'array',
 
+        'time_window_enabled',
+        'time_window_mode',
+        'time_window_ranges',
 
+        'days_of_week_enabled',
+        'days_of_week_mode',
+        'days_of_week',
 
-        // Restriction fields
-        'time_range_enabled' => 'boolean',
-        'time_ranges' => 'array',
-
-        'weekday_enabled' => 'boolean',
-        'weekdays' => 'array',
-
-        'holiday_enabled' => 'boolean',
-        'holiday_country' => 'string',
+        'public_holidays_enabled',
+        'public_holidays_mode',
 
     ];
 
