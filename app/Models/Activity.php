@@ -52,23 +52,19 @@ class Activity extends Model
         'mandatory_gap_value',
         'mandatory_gap_unit',
 
-        /*
-     * Time Window
-     */
-        'time_window_enabled' => 'boolean',
-        'time_window_ranges' => 'array',
+             // Time Window
+        'time_window_enabled',
+        'time_window_mode',
+        'time_window_ranges',
 
-        /*
-     * Days
-     */
-        'days_of_week_enabled' => 'boolean',
-        'days_of_week' => 'array',
+        // Days
+        'days_of_week_enabled',
+        'days_of_week_mode',
+        'days_of_week',
 
-        /*
-     * Public Holidays
-     */
-        'public_holidays_enabled' => 'boolean',
-
+        // Public Holidays
+        'public_holidays_enabled',
+        'public_holidays_mode',
 
     ];
 
@@ -96,17 +92,17 @@ class Activity extends Model
 
         // URLs
         'urls' => 'array',
+        
+        'time_window_enabled' => 'boolean',
+        'time_window_mode' => 'string',
+        'time_window_ranges' => 'array',
 
-        'time_window_enabled',
-        'time_window_mode',
-        'time_window_ranges',
+        'days_of_week_enabled' => 'boolean',
+        'days_of_week_mode' => 'string',
+        'days_of_week' => 'array',
 
-        'days_of_week_enabled',
-        'days_of_week_mode',
-        'days_of_week',
-
-        'public_holidays_enabled',
-        'public_holidays_mode',
+        'public_holidays_enabled' => 'boolean',
+        'public_holidays_mode' => 'string',
 
     ];
 
