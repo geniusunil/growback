@@ -62,6 +62,8 @@ class Activity extends Model
         'days_of_week_mode',
         'days_of_week',
 
+         'weekly_days',
+
         // Public Holidays
         'public_holidays_enabled',
         'public_holidays_mode',
@@ -100,6 +102,8 @@ class Activity extends Model
         'days_of_week_enabled' => 'boolean',
         'days_of_week_mode' => 'string',
         'days_of_week' => 'array',
+
+         'weekly_days' => 'array',
 
         'public_holidays_enabled' => 'boolean',
         'public_holidays_mode' => 'string',

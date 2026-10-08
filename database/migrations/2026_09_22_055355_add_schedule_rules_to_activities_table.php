@@ -41,19 +41,21 @@ return new class extends Migration
                 ->nullable()
                 ->after('days_of_week_mode');
 
+            $table->json('weekly_days')
+                ->nullable()
+                ->after('days_of_week');
+
 
             /*
              * Public Holidays
              */
             $table->boolean('public_holidays_enabled')
                 ->default(false)
-                ->after('days_of_week');
+                ->after('weekly_days');
 
             $table->string('public_holidays_mode')
                 ->nullable()
                 ->after('public_holidays_enabled');
-
-           
         });
     }
 
@@ -69,10 +71,10 @@ return new class extends Migration
                 'days_of_week_enabled',
                 'days_of_week_mode',
                 'days_of_week',
-
+              
                 'public_holidays_enabled',
                 'public_holidays_mode',
-              
+
             ]);
         });
     }
