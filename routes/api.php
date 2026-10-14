@@ -1,96 +1,105 @@
  <?php
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\GoogleLoginController;
-use App\Http\Controllers\ActivityController;
-use App\Http\Controllers\Api\BackupController;
-use App\Models\GuestSession;
-use Illuminate\Support\Str;
 
-Route::get('check-connection', function (){ 
-    return response()->json(['message' => 'API is working']);
-});
+    use Illuminate\Http\Request;
+    use Illuminate\Support\Facades\Route;
+    use App\Http\Controllers\AuthController;
+    use App\Http\Controllers\GoogleLoginController;
+    use App\Http\Controllers\ActivityController;
+    use App\Http\Controllers\Api\BackupController;
+    use App\Models\GuestSession;
+    use Illuminate\Support\Str;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+    Route::get('check-connection', function () {
+        return response()->json(['message' => 'API is working']);
+    });
 
-Route::post('/guest-session', function () {
-    $plainToken = Str::random(64);
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    })->middleware('auth:sanctum');
 
-    $session = GuestSession::create([
-        'guest_id' => (string) Str::uuid(),
-        'token_hash' => hash('sha256', $plainToken),
-        'expires_at' => now()->addDays(30),
-    ]);
+    Route::post('/guest-session', function () {
+        $plainToken = Str::random(64);
 
-    return response()->json([
-        'success' => true,
-        'guest_id' => $session->guest_id,
-        'token' => $plainToken,
-        'expires_at' => $session->expires_at,
-    ], 201);
-})->middleware('throttle:10,1');
+        $session = GuestSession::create([
+            'guest_id' => (string) Str::uuid(),
+            'token_hash' => hash('sha256', $plainToken),
+            'expires_at' => now()->addDays(30),
+        ]);
 
-
-
-Route::middleware('user-or-guest')->group(function () {
-    Route::post('/activities', [
-        ActivityController::class,
-        'store',
-    ]);
-
-    Route::get('/activities', [
-        ActivityController::class,
-        'index',
-    ]);
-
-    Route::get('/activities/{id}', [
-        ActivityController::class,
-        'show',
-    ]);
-
-    Route::post('/activities/{id}/update', [
-        ActivityController::class,
-        'update',
-    ]);
-});
-
-Route::post('/signup', [AuthController::class, 'signup']);
-Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
-Route::post('/google-login', [GoogleLoginController::class, 'googleLogin']);
-Route::post('/activities/{id}/uncomplete', [ActivityController::class, 'unmarkComplete']);
-
-// Route::post('/activities', [ActivityController::class, 'store']);
-// Route::get('/activities', [ActivityController::class, 'index']);
-Route::get('/activities/trash', [ActivityController::class, 'trash']);
-Route::post('/activities/restore-all', [ActivityController::class, 'restoreAll']);
-Route::post('/activities/force-all', [ActivityController::class, 'forceDeleteAll']);
+        return response()->json([
+            'success' => true,
+            'guest_id' => $session->guest_id,
+            'token' => $plainToken,
+            'expires_at' => $session->expires_at,
+        ], 201);
+    })->middleware('throttle:10,1');
 
 
-// Route::get('/activities/{id}', [ActivityController::class, 'show']);
-// Route::post('/activities/{id}/update', [ActivityController::class, 'update']);
-Route::delete('/activities/{id}', [ActivityController::class, 'destroy']);        // Flutter uses DELETE /activities/$id
-Route::post('/activities/{id}/delete', [ActivityController::class, 'destroy']);   // legacy fallback
-Route::post('/activities/{id}/restore', [ActivityController::class, 'restore']);
-Route::post('/activities/{id}/force-delete', [ActivityController::class, 'forceDelete']);
-Route::post('/activities/{id}/complete', [ActivityController::class, 'markComplete']);
 
-Route::delete('/attachments/{id}', [ActivityController::class, 'deleteAttachment']);
-Route::post('/attachments/{id}/delete', [ActivityController::class, 'deleteAttachment']);
+    Route::middleware('user-or-guest')->group(function () {
+        Route::post('/activities', [
+            ActivityController::class,
+            'store',
+        ]);
+
+        Route::get('/activities', [
+            ActivityController::class,
+            'index',
+        ]);
+
+        Route::get('/activities/{id}', [
+            ActivityController::class,
+            'show',
+        ]);
+
+        Route::post('/activities/{id}/update', [
+            ActivityController::class,
+            'update',
+        ]);
+
+        Route::post('/activities/{id}/force-delete', [
+            ActivityController::class,
+            'forceDelete',
+        ]);
+
+        Route::post('/activities/force-all', [
+            ActivityController::class,
+            'forceDeleteAll',
+        ]);
+
+        Route::delete('/activities/{id}', [ActivityController::class, 'destroy']);
+        Route::post('/activities/{id}/delete', [ActivityController::class, 'destroy']);
+    });
+
+    Route::post('/signup', [AuthController::class, 'signup']);
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('/google-login', [GoogleLoginController::class, 'googleLogin']);
+    Route::post('/activities/{id}/uncomplete', [ActivityController::class, 'unmarkComplete']);
+
+ 
+    Route::get('/activities/trash', [ActivityController::class, 'trash']);
+    Route::post('/activities/restore-all', [ActivityController::class, 'restoreAll']);
 
 
-Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
-Route::post('/cancel-deletion', [AuthController::class, 'cancelDeletion']);
-Route::post('/reactivate-activity', [AuthController::class, 'reactivateActivity']);
-Route::post('/snooze-activity', [AuthController::class, 'snoozeActivity']);
 
-Route::post('/save-fcm-token', [AuthController::class, 'saveFcmToken']);
-Route::post('/send-fcm-push', [AuthController::class, 'triggerFcmPush']);
+  
+    Route::post('/activities/{id}/restore', [ActivityController::class, 'restore']);
+    Route::post('/activities/{id}/complete', [ActivityController::class, 'markComplete']);
 
-Route::post('/backup/export', [BackupController::class, 'export']);
-Route::post('/backup/import', [BackupController::class, 'import']);
+    Route::delete('/attachments/{id}', [ActivityController::class, 'deleteAttachment']);
+    Route::post('/attachments/{id}/delete', [ActivityController::class, 'deleteAttachment']);
 
-Route::post('/save-holiday-settings', [AuthController::class, 'saveHolidaySettings']);
-Route::get('/get-holiday-settings', [AuthController::class, 'getHolidaySettings']);
+
+    Route::post('/delete-account', [AuthController::class, 'deleteAccount']);
+    Route::post('/cancel-deletion', [AuthController::class, 'cancelDeletion']);
+    Route::post('/reactivate-activity', [AuthController::class, 'reactivateActivity']);
+    Route::post('/snooze-activity', [AuthController::class, 'snoozeActivity']);
+
+    Route::post('/save-fcm-token', [AuthController::class, 'saveFcmToken']);
+    Route::post('/send-fcm-push', [AuthController::class, 'triggerFcmPush']);
+
+    Route::post('/backup/export', [BackupController::class, 'export']);
+    Route::post('/backup/import', [BackupController::class, 'import']);
+
+    Route::post('/save-holiday-settings', [AuthController::class, 'saveHolidaySettings']);
+    Route::get('/get-holiday-settings', [AuthController::class, 'getHolidaySettings']);

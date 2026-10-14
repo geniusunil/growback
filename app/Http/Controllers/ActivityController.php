@@ -1236,7 +1236,7 @@ class ActivityController extends Controller
      *
      * BLOCKED when account deletion is requested.
      */
-    public function destroy($id)
+  public function destroy(Request $request, $id)
     {
         Log::info(
             "DELETE_REQUEST_ID: $id"
@@ -1244,8 +1244,7 @@ class ActivityController extends Controller
 
         try {
 
-            $activity =
-                Activity::find($id);
+           $activity = $this->ownedActivities($request)->find($id);
 
             if (!$activity) {
 
@@ -1408,95 +1407,73 @@ class ActivityController extends Controller
 
     /**
      * Permanently delete a trashed activity.
-     *
-     * BLOCKED when account deletion is requested.
+     * Only the authenticated user's or guest's own activity can be deleted.
      */
-    public function forceDelete($id)
+    public function forceDelete(Request $request, $id)
     {
         try {
-
-            $activity =
-                Activity::with('attachments')
+            $activity = $this->ownedActivities($request)
+                ->with('attachments')
                 ->onlyTrashed()
-                ->find($id);
+                ->whereKey($id)
+                ->first();
 
             if (!$activity) {
-
                 return response()->json([
                     'success' => false,
-                    'message' =>
-                    'Activity not found in trash'
+                    'message' => 'Activity not found in trash',
                 ], 404);
             }
 
+            // Block deletion if account deletion is scheduled.
+            $user = $request->user();
 
-            /*
-             * Account deletion restriction
-             */
-
-
-            /*
-             * Delete thumbnail
-             */
-            if (
-                $activity->thumbnail &&
-                Storage::disk('public')
-                ->exists(
-                    'thumbnails/' .
-                        $activity->thumbnail
-                )
-            ) {
-
-                Storage::disk('public')
-                    ->delete(
-                        'thumbnails/' .
-                            $activity->thumbnail
-                    );
+            if ($user && $user->is_deletion_scheduled) {
+                return $this->deletionBlockedResponse();
             }
 
-
-            /*
-             * Delete attachment files
-             */
-            foreach (
-                $activity->attachments
-                as $attachment
+            // Delete thumbnail file.
+            if (
+                $activity->thumbnail &&
+                Storage::disk('public')->exists(
+                    'thumbnails/' . $activity->thumbnail
+                )
             ) {
+                Storage::disk('public')->delete(
+                    'thumbnails/' . $activity->thumbnail
+                );
+            }
 
+            // Delete attachment files.
+            foreach ($activity->attachments as $attachment) {
                 if (
-                    Storage::disk('public')
-                    ->exists(
-                        'attachments/' .
-                            $attachment->file_name
+                    $attachment->file_name &&
+                    Storage::disk('public')->exists(
+                        'attachments/' . $attachment->file_name
                     )
                 ) {
-
-                    Storage::disk('public')
-                        ->delete(
-                            'attachments/' .
-                                $attachment->file_name
-                        );
+                    Storage::disk('public')->delete(
+                        'attachments/' . $attachment->file_name
+                    );
                 }
             }
 
-
-            /*
-             * Permanently delete activity
-             */
+            // Permanently delete the activity record.
             $activity->forceDelete();
-
 
             return response()->json([
                 'success' => true,
-                'message' =>
-                'Activity permanently deleted'
+                'message' => 'Activity permanently deleted',
             ]);
         } catch (\Exception $e) {
+            Log::error('Force delete activity failed', [
+                'activity_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
 
             return response()->json([
                 'success' => false,
-                'message' =>
-                $e->getMessage()
+                'message' => 'Failed to permanently delete activity',
             ], 500);
         }
     }
@@ -1570,126 +1547,70 @@ class ActivityController extends Controller
 
 
     /**
-     * Bulk permanently delete all trashed activities.
-     *
-     * BLOCKED when account deletion is requested.
+     * Permanently delete all trashed activities belonging
+     * to the authenticated user or guest.
      */
     public function forceDeleteAll(Request $request)
     {
         try {
+            // Block deletion if account deletion is scheduled.
+            $user = $request->user();
 
-            $user_id =
-                $request->query('user_id');
-
-            $guest_id =
-                $request->query('guest_id');
-
-            if (!$user_id && !$guest_id) {
-
-                return response()->json([
-                    'success' => false,
-                    'message' =>
-                    'Missing ID'
-                ], 400);
+            if ($user && $user->is_deletion_scheduled) {
+                return $this->deletionBlockedResponse();
             }
 
-
-            /*
-             * Account deletion restriction
-             */
-
-
-
-            $activities =
-                Activity::with('attachments')
+            // Fetch only the current user's or guest's trashed activities.
+            $activities = $this->ownedActivities($request)
+                ->with('attachments')
                 ->onlyTrashed()
-                ->when(
-                    $user_id,
-                    fn($q) =>
-                    $q->where(
-                        'user_id',
-                        $user_id
-                    )
-                )
-                ->when(
-                    $guest_id,
-                    fn($q) =>
-                    $q->where(
-                        'guest_id',
-                        $guest_id
-                    )
-                )
                 ->get();
 
+            foreach ($activities as $activity) {
 
-            foreach (
-                $activities
-                as $activity
-            ) {
-
-                /*
-                 * Delete thumbnail
-                 */
+                // Delete thumbnail file.
                 if (
                     $activity->thumbnail &&
-                    Storage::disk('public')
-                    ->exists(
-                        'thumbnails/' .
-                            $activity->thumbnail
+                    Storage::disk('public')->exists(
+                        'thumbnails/' . $activity->thumbnail
                     )
                 ) {
-
-                    Storage::disk('public')
-                        ->delete(
-                            'thumbnails/' .
-                                $activity->thumbnail
-                        );
+                    Storage::disk('public')->delete(
+                        'thumbnails/' . $activity->thumbnail
+                    );
                 }
 
-
-                /*
-                 * Delete attachment files
-                 */
-                foreach (
-                    $activity->attachments
-                    as $attachment
-                ) {
-
+                // Delete attachment files.
+                foreach ($activity->attachments as $attachment) {
                     if (
-                        Storage::disk('public')
-                        ->exists(
-                            'attachments/' .
-                                $attachment->file_name
+                        $attachment->file_name &&
+                        Storage::disk('public')->exists(
+                            'attachments/' . $attachment->file_name
                         )
                     ) {
-
-                        Storage::disk('public')
-                            ->delete(
-                                'attachments/' .
-                                    $attachment->file_name
-                            );
+                        Storage::disk('public')->delete(
+                            'attachments/' . $attachment->file_name
+                        );
                     }
                 }
 
-
-                /*
-                 * Delete activity record
-                 */
+                // Permanently delete the activity record.
                 $activity->forceDelete();
             }
 
-
             return response()->json([
                 'success' => true,
-                'message' =>
-                'All activities permanently deleted'
+                'message' => 'All trashed activities permanently deleted',
+                'deleted_count' => $activities->count(),
             ]);
         } catch (\Exception $e) {
+            Log::error('Force delete all activities failed', [
+                'error' => $e->getMessage(),
+            ]);
 
             return response()->json([
                 'success' => false,
-                'message' =>
-                $e->getMessage()
+                'message' => 'Failed to permanently delete activities',
             ], 500);
         }
     }
