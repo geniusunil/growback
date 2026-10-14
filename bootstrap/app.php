@@ -1,8 +1,10 @@
+
 <?php
 
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Http\Middleware\AuthenticateUserOrGuest;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -11,17 +13,19 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    // ->withMiddleware(function (Middleware $middleware): void {
-    //     $middleware->statefulApi();
-    //     $middleware->prependToGroup('api', \Illuminate\Http\Middleware\HandleCors::class);
-    // })
     ->withMiddleware(function (Middleware $middleware) {
-    $middleware->validateCsrfTokens(except: [
-        'api/*',
-    ]);
-})
+
+        // Register custom middleware alias
+        $middleware->alias([
+            'user-or-guest' => AuthenticateUserOrGuest::class,
+        ]);
+
+        // Keep your existing CSRF configuration
+        $middleware->validateCsrfTokens(except: [
+            'api/*',
+        ]);
+
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();
-
-

@@ -56,6 +56,8 @@ return new class extends Migration
             $table->string('public_holidays_mode')
                 ->nullable()
                 ->after('public_holidays_enabled');
+
+        
         });
     }
 
@@ -71,7 +73,7 @@ return new class extends Migration
                 'days_of_week_enabled',
                 'days_of_week_mode',
                 'days_of_week',
-              
+
                 'public_holidays_enabled',
                 'public_holidays_mode',
 

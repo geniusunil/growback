@@ -52,7 +52,7 @@ class Activity extends Model
         'mandatory_gap_value',
         'mandatory_gap_unit',
 
-             // Time Window
+        // Time Window
         'time_window_enabled',
         'time_window_mode',
         'time_window_ranges',
@@ -62,12 +62,15 @@ class Activity extends Model
         'days_of_week_mode',
         'days_of_week',
 
-         'weekly_days',
+        'weekly_days',
 
         // Public Holidays
         'public_holidays_enabled',
         'public_holidays_mode',
+        'custom_holiday_ranges',
+        'disabled_holidays'
 
+       
     ];
 
     protected $casts = [
@@ -94,7 +97,7 @@ class Activity extends Model
 
         // URLs
         'urls' => 'array',
-        
+
         'time_window_enabled' => 'boolean',
         'time_window_mode' => 'string',
         'time_window_ranges' => 'array',
@@ -103,10 +106,12 @@ class Activity extends Model
         'days_of_week_mode' => 'string',
         'days_of_week' => 'array',
 
-         'weekly_days' => 'array',
+        'weekly_days' => 'array',
 
         'public_holidays_enabled' => 'boolean',
         'public_holidays_mode' => 'string',
+         'custom_holiday_ranges' => 'array',
+        'disabled_holidays' => 'array',
 
     ];
 

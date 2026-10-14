@@ -11,25 +11,12 @@ use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 use App\Models\User;
 
+
 class ActivityController extends Controller
 {
     /**
      * Check whether the user's account is scheduled for deletion.
-     *
-     * Users with deletion_requested = true can only:
-     * - View existing information
-     * - Cancel account deletion
      */
-    private function accountDeletionRequested($userId): bool
-    {
-        if (!$userId) {
-            return false;
-        }
-
-        return User::where('id', $userId)
-            ->where('deletion_requested', true)
-            ->exists();
-    }
 
     /**
      * Standard response when an action is blocked
@@ -43,30 +30,35 @@ class ActivityController extends Controller
         ], 403);
     }
 
+    // Add the new function here
+    private function ownedActivities(Request $request)
+    {
+        $type = $request->attributes->get('actor_type');
+        $id = $request->attributes->get('actor_id');
 
+        if ($type === 'user' && $id) {
+            return Activity::query()->where('user_id', $id);
+        }
+
+        if ($type === 'guest' && $id) {
+            return Activity::query()
+                ->where('guest_id', $id)
+                ->whereNull('user_id');
+        }
+
+        abort(401, 'Authentication required.');
+    }
 
     /**
-     * Display a listing of activities for a user/guest.
-     *
      * READ-ONLY:
      * Users scheduled for deletion can still view activities.
      */
     public function index(Request $request)
     {
         try {
-            $user_id = $request->query('user_id');
-            $guest_id = $request->query('guest_id');
 
-            if (!$user_id && !$guest_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Missing ID'
-                ], 400);
-            }
-
-            $activities = Activity::with('attachments')
-                ->when($user_id, fn($q) => $q->where('user_id', $user_id))
-                ->when($guest_id, fn($q) => $q->where('guest_id', $guest_id))
+            $activities = $this->ownedActivities($request)
+                ->with('attachments')
                 ->get();
 
             $activities = $activities->map(function ($activity) {
@@ -105,8 +97,7 @@ class ActivityController extends Controller
                     2
                 );
 
-                // If task is already overdue after considering duration,
-                // reverse the priority
+                // Reverse priority if overdue after considering duration
                 $adjustedPriority = $priorityValue;
 
                 if ($timeDifference < 0) {
@@ -129,14 +120,13 @@ class ActivityController extends Controller
                 'activities' => $activities
             ]);
         } catch (\Exception $e) {
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
             ], 500);
         }
     }
-
-
 
 
     /**
@@ -156,10 +146,7 @@ class ActivityController extends Controller
                 ], 404);
             }
 
-            // Account deletion restriction
-            if ($this->accountDeletionRequested($activity->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
             $activity->update([
                 'is_completed' => false,
@@ -186,10 +173,13 @@ class ActivityController extends Controller
      * READ-ONLY:
      * Users scheduled for deletion can still view activities.
      */
-    public function show($id)
+
+    public function show(Request $request, $id)
     {
         try {
-            $activity = Activity::with('attachments')->find($id);
+            $activity = $this->ownedActivities($request)
+                ->with('attachments')
+                ->find($id);
 
             if (!$activity) {
                 return response()->json([
@@ -228,9 +218,7 @@ class ActivityController extends Controller
              * A user whose account is scheduled for deletion
              * cannot create a new activity.
              */
-            if ($this->accountDeletionRequested($request->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             $validator = Validator::make($request->all(), [
@@ -393,6 +381,9 @@ class ActivityController extends Controller
                 'days_of_week.*' =>
                 'string|in:mon,tue,wed,thu,fri,sat,sun',
 
+                'weekly_days' => 'nullable|array',
+                'weekly_days.*' => 'string|in:mon,tue,wed,thu,fri,sat,sun',
+
 
                 /*
  * Public Holidays
@@ -467,6 +458,19 @@ class ActivityController extends Controller
 
 
             $data = $validator->validated();
+
+
+            // Never trust ownership IDs from the client
+            unset($data['user_id'], $data['guest_id']);
+
+            if ($request->attributes->get('actor_type') === 'user') {
+                $data['user_id'] = $request->attributes->get('actor_id');
+                $data['guest_id'] = null;
+            } else {
+                $data['user_id'] = null;
+                $data['guest_id'] = $request->attributes->get('actor_id');
+            }
+
 
 
             /*
@@ -590,7 +594,7 @@ class ActivityController extends Controller
     {
         try {
 
-            $activity = Activity::find($id);
+            $activity = $this->ownedActivities($request)->find($id);
 
             if (!$activity) {
 
@@ -605,9 +609,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($activity->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             /*
@@ -827,6 +829,9 @@ class ActivityController extends Controller
                     'days_of_week.*' =>
                     'string|in:mon,tue,wed,thu,fri,sat,sun',
 
+                    'weekly_days' => 'nullable|array',
+                    'weekly_days.*' => 'string|in:mon,tue,wed,thu,fri,sat,sun',
+
 
                     /*
  * Public Holidays
@@ -837,7 +842,7 @@ class ActivityController extends Controller
                     'public_holidays_mode' =>
                     'nullable|string|in:can,cannot',
 
-                
+
 
 
                 ]
@@ -1121,9 +1126,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($attachment->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             /*
@@ -1192,9 +1195,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($activity->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             $activity->is_completed = true;
@@ -1259,9 +1260,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($activity->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             $activity->deleted_at =
@@ -1383,9 +1382,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($activity->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             $activity->restore();
@@ -1436,9 +1433,6 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($activity->user_id)) {
-                return $this->deletionBlockedResponse();
-            }
 
 
             /*
@@ -1536,9 +1530,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             Activity::onlyTrashed()
@@ -1605,9 +1597,7 @@ class ActivityController extends Controller
             /*
              * Account deletion restriction
              */
-            if ($this->accountDeletionRequested($user_id)) {
-                return $this->deletionBlockedResponse();
-            }
+
 
 
             $activities =

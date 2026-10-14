@@ -354,5 +354,61 @@ class AuthController extends Controller
         }
     }
     
+    
  
+
+public function saveHolidaySettings(Request $request)
+{
+    $request->validate([
+        'user_id' => 'required|integer|exists:users,id',
+        'disabled_holidays' => 'nullable|array',
+        'custom_holiday_ranges' => 'nullable|array',
+    ]);
+
+    $user = User::find($request->user_id);
+
+    if (!$user) {
+        return response()->json([
+            'status' => false,
+            'message' => 'User not found'
+        ], 404);
+    }
+
+    $user->disabled_holidays = $request->disabled_holidays ?? [];
+    $user->custom_holiday_ranges = $request->custom_holiday_ranges ?? [];
+    $user->save();
+
+    return response()->json([
+        'status' => true,
+        'message' => 'Holiday settings saved successfully'
+    ]);
+}
+
+public function getHolidaySettings(Request $request)
+{
+    $userId = $request->query('user_id') ?? $request->input('user_id');
+
+    if (!$userId) {
+        return response()->json([
+            'status' => false,
+            'message' => 'User ID is required'
+        ], 422);
+    }
+
+    $user = User::find($userId);
+
+    if (!$user) {
+        return response()->json([
+            'status' => false,
+            'message' => 'User not found'
+        ], 404);
+    }
+
+    return response()->json([
+        'status' => true,
+        'disabled_holidays' => $user->disabled_holidays ?? [],
+        'custom_holiday_ranges' => $user->custom_holiday_ranges ?? []
+    ]);
+}
+
 }

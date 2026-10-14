@@ -30,6 +30,8 @@ class User extends Authenticatable
         'deletion_scheduled_at',
         'deletion_due_at',
         'fcm_token',
+        'custom_holiday_ranges',
+         'disabled_holdays'
     ];
 
     /**
