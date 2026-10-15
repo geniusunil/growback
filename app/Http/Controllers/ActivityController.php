@@ -218,7 +218,7 @@ class ActivityController extends Controller
              * A user whose account is scheduled for deletion
              * cannot create a new activity.
              */
-
+          
 
 
             $validator = Validator::make($request->all(), [
@@ -380,8 +380,8 @@ class ActivityController extends Controller
 
                 'days_of_week.*' =>
                 'string|in:mon,tue,wed,thu,fri,sat,sun',
-
-                'weekly_days' => 'nullable|array',
+                
+                 'weekly_days' => 'nullable|array',
                 'weekly_days.*' => 'string|in:mon,tue,wed,thu,fri,sat,sun',
 
 
@@ -458,19 +458,6 @@ class ActivityController extends Controller
 
 
             $data = $validator->validated();
-
-
-            // Never trust ownership IDs from the client
-            unset($data['user_id'], $data['guest_id']);
-
-            if ($request->attributes->get('actor_type') === 'user') {
-                $data['user_id'] = $request->attributes->get('actor_id');
-                $data['guest_id'] = null;
-            } else {
-                $data['user_id'] = null;
-                $data['guest_id'] = $request->attributes->get('actor_id');
-            }
-
 
 
             /*
@@ -583,6 +570,7 @@ class ActivityController extends Controller
             ], 500);
         }
     }
+
 
 
     /**
@@ -1293,68 +1281,30 @@ class ActivityController extends Controller
      * READ-ONLY:
      * Users scheduled for deletion can still view trash.
      */
-    public function trash(Request $request)
-    {
-        try {
+   public function trash(Request $request)
+{
+    try {
+        $activities = $this->ownedActivities($request)
+            ->with('attachments')
+            ->onlyTrashed()
+            ->orderBy('deleted_at', 'desc')
+            ->get();
 
-            $user_id =
-                $request->query('user_id');
+        return response()->json([
+            'success' => true,
+            'activities' => $activities,
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Trash activities fetch failed', [
+            'error' => $e->getMessage(),
+        ]);
 
-            $guest_id =
-                $request->query('guest_id');
-
-            if (!$user_id && !$guest_id) {
-
-                return response()->json([
-                    'success' => false,
-                    'message' =>
-                    'Missing ID'
-                ], 400);
-            }
-
-
-            $activities =
-                Activity::with('attachments')
-                ->onlyTrashed()
-                ->when(
-                    $user_id,
-                    fn($q) =>
-                    $q->where(
-                        'user_id',
-                        $user_id
-                    )
-                )
-                ->when(
-                    $guest_id,
-                    fn($q) =>
-                    $q->where(
-                        'guest_id',
-                        $guest_id
-                    )
-                )
-                ->orderBy(
-                    'deleted_at',
-                    'desc'
-                )
-                ->get();
-
-
-            return response()->json([
-                'success' => true,
-                'activities' =>
-                $activities
-            ]);
-        } catch (\Exception $e) {
-
-            return response()->json([
-                'success' => false,
-                'message' =>
-                $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to fetch trashed activities',
+        ], 500);
     }
-
-
+}
     /**
      * Restore a trashed activity.
      *

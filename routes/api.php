@@ -8,6 +8,7 @@
     use App\Http\Controllers\Api\BackupController;
     use App\Models\GuestSession;
     use Illuminate\Support\Str;
+    use App\Models\Activity;
 
     Route::get('check-connection', function () {
         return response()->json(['message' => 'API is working']);
@@ -17,11 +18,48 @@
         return $request->user();
     })->middleware('auth:sanctum');
 
-    Route::post('/guest-session', function () {
+
+    Route::post('/guest-session', function (Request $request) {
+
+        $request->validate([
+            'guest_id' => 'required|string',
+        ]);
+
+        $guestId = $request->guest_id;
+
+        // Check that this guest ID exists in activities.
+        $activityExists = Activity::where('guest_id', $guestId)
+            ->whereNull('user_id')
+            ->exists();
+
+        if (!$activityExists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Guest activity not found.',
+            ], 404);
+        }
+
+        // Reuse existing active session.
+        $session = GuestSession::where('guest_id', $guestId)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->first();
+
+        if ($session) {
+            return response()->json([
+                'success' => true,
+                'guest_id' => $session->guest_id,
+                'message' => 'Guest session already exists.',
+            ]);
+        }
+
+        // Generate token for the existing guest ID.
         $plainToken = Str::random(64);
 
         $session = GuestSession::create([
-            'guest_id' => (string) Str::uuid(),
+            'guest_id' => $guestId,
             'token_hash' => hash('sha256', $plainToken),
             'expires_at' => now()->addDays(30),
         ]);
@@ -37,14 +75,21 @@
 
 
     Route::middleware('user-or-guest')->group(function () {
-        Route::post('/activities', [
-            ActivityController::class,
-            'store',
-        ]);
+
+        // Route::post('/activities', [
+        //     ActivityController::class,
+        //     'store',
+        // ]);
 
         Route::get('/activities', [
             ActivityController::class,
             'index',
+        ]);
+
+        // IMPORTANT: trash route must come before {id}
+        Route::get('/activities/trash', [
+            ActivityController::class,
+            'trash',
         ]);
 
         Route::get('/activities/{id}', [
@@ -67,22 +112,35 @@
             'forceDeleteAll',
         ]);
 
-        Route::delete('/activities/{id}', [ActivityController::class, 'destroy']);
-        Route::post('/activities/{id}/delete', [ActivityController::class, 'destroy']);
+        Route::delete('/activities/{id}', [
+            ActivityController::class,
+            'destroy',
+        ]);
+
+        Route::post('/activities/{id}/delete', [
+            ActivityController::class,
+            'destroy',
+        ]);
     });
+
 
     Route::post('/signup', [AuthController::class, 'signup']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/google-login', [GoogleLoginController::class, 'googleLogin']);
     Route::post('/activities/{id}/uncomplete', [ActivityController::class, 'unmarkComplete']);
 
- 
-    Route::get('/activities/trash', [ActivityController::class, 'trash']);
+    Route::post('/activities', [
+        ActivityController::class,
+        'store',
+    ]);
+
+
+    // Route::get('/activities/trash', [ActivityController::class, 'trash']);
     Route::post('/activities/restore-all', [ActivityController::class, 'restoreAll']);
 
 
 
-  
+
     Route::post('/activities/{id}/restore', [ActivityController::class, 'restore']);
     Route::post('/activities/{id}/complete', [ActivityController::class, 'markComplete']);
 

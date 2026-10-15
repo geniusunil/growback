@@ -13,7 +13,7 @@ return new class extends Migration
 {
     Schema::create('guest_sessions', function (Blueprint $table) {
         $table->id();
-        $table->uuid('guest_id')->unique();
+      $table->string('guest_id')->unique();
         $table->string('token_hash', 64)->unique();
         $table->timestamp('expires_at')->nullable();
         $table->timestamps();

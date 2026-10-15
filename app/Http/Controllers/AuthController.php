@@ -363,6 +363,7 @@ public function saveHolidaySettings(Request $request)
         'user_id' => 'required|integer|exists:users,id',
         'disabled_holidays' => 'nullable|array',
         'custom_holiday_ranges' => 'nullable|array',
+        'country_code' => 'nullable|string|max:5',
     ]);
 
     $user = User::find($request->user_id);
@@ -407,7 +408,8 @@ public function getHolidaySettings(Request $request)
     return response()->json([
         'status' => true,
         'disabled_holidays' => $user->disabled_holidays ?? [],
-        'custom_holiday_ranges' => $user->custom_holiday_ranges ?? []
+        'custom_holiday_ranges' => $user->custom_holiday_ranges ?? [],
+        'country_code' => $user->country_code ?? null,     // ← add
     ]);
 }
 
