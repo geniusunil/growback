@@ -68,7 +68,8 @@ class Activity extends Model
         'public_holidays_enabled',
         'public_holidays_mode',
         'custom_holiday_ranges',
-        'disabled_holidays'
+        'disabled_holidays',
+        'repeat_window'
 
        
     ];
@@ -112,6 +113,7 @@ class Activity extends Model
         'public_holidays_mode' => 'string',
          'custom_holiday_ranges' => 'array',
         'disabled_holidays' => 'array',
+        'repeat_window' => 'array',
 
     ];
 

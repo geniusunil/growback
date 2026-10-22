@@ -9,11 +9,77 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\Attachment;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use App\Models\GuestSession;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 
 
 class ActivityController extends Controller
 {
+    
+    
+public function createGuestSession(Request $request)
+{
+    try {
+        // Existing valid token hai to wahi guest session reuse karo.
+        $bearer = $request->bearerToken();
+
+        if ($bearer) {
+            $session = GuestSession::where(
+                'token_hash',
+                hash('sha256', $bearer)
+            )
+                ->where(function ($query) {
+                    $query->whereNull('expires_at')
+                        ->orWhere('expires_at', '>', now());
+                })
+                ->first();
+
+            if ($session) {
+                return response()->json([
+                    'success' => true,
+                    'guest_id' => $session->guest_id,
+                    'guest_auth' => [
+                        'token' => $bearer,
+                        'expires_at' => $session->expires_at,
+                    ],
+                ]);
+            }
+        }
+
+        // Naye guest ke liye server khud ID aur token banata hai.
+        $guestId = (string) Str::uuid();
+        $plainToken = Str::random(64);
+
+        $session = GuestSession::create([
+            'guest_id' => $guestId,
+            'token_hash' => hash('sha256', $plainToken),
+            'expires_at' => now()->addDays(30),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'guest_id' => $guestId,
+            'guest_auth' => [
+                'token' => $plainToken,
+                'expires_at' => $session->expires_at,
+            ],
+        ], 201);
+    } catch (\Throwable $e) {
+        Log::error('Guest session creation failed', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Unable to create guest session.',
+        ], 500);
+    }
+}
+
+    
+    
     /**
      * Check whether the user's account is scheduled for deletion.
      */
@@ -29,7 +95,41 @@ class ActivityController extends Controller
             'message' => 'Account is scheduled for deletion.'
         ], 403);
     }
+ // NEW FUNCTION: Guest token generate karna
+    private function getOrCreateGuestToken(string $guestId): array
+    {
+        $session = GuestSession::where('guest_id', $guestId)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->first();
 
+        if ($session) {
+            return [
+                'token' => null,
+                'expires_at' => $session->expires_at,
+                'new_token_generated' => false,
+            ];
+        }
+
+        $plainToken = Str::random(64);
+
+        $session = GuestSession::updateOrCreate(
+            ['guest_id' => $guestId],
+            [
+                'token_hash' => hash('sha256', $plainToken),
+                'expires_at' => now()->addDays(30),
+            ]
+        );
+
+        return [
+            'token' => $plainToken,
+            'expires_at' => $session->expires_at,
+            'new_token_generated' => true,
+        ];
+    }
+    
     // Add the new function here
     private function ownedActivities(Request $request)
     {
@@ -206,373 +306,248 @@ class ActivityController extends Controller
      *
      * BLOCKED when account deletion is requested.
      */
-    public function store(Request $request)
-    {
-        Log::info('Activity store request arrived', $request->all());
+public function store(Request $request)
+{
+    Log::info('Activity store request arrived', $request->except([
+        'attachments',
+        'thumbnail',
+    ]));
 
-        try {
+    try {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'nullable|exists:users,id',
+            'guest_id' => 'nullable|string|required_without:user_id',
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string',
+            'priority' => 'required|string|in:high,medium,low',
+            'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => [
+                'file',
+                function ($attribute, $value, $fail) {
+                    $allowed = [
+                        'jpg', 'jpeg', 'png', 'webp',
+                        'mp4', 'mov', 'mp3', 'wav', 'aac',
+                        'opus', 'pdf', 'doc', 'docx', 'txt',
+                    ];
 
-            /*
-             * Account deletion restriction
-             *
-             * A user whose account is scheduled for deletion
-             * cannot create a new activity.
-             */
-          
+                    $ext = strtolower(
+                        $value->getClientOriginalExtension()
+                    );
 
-
-            $validator = Validator::make($request->all(), [
-
-                'user_id' => 'nullable|exists:users,id',
-
-                'guest_id' => 'nullable|string',
-
-                'title' => 'required|string|max:255',
-
-                'description' => 'nullable|string',
-
-                'category' => 'nullable|string',
-
-                'priority' => 'required|string|in:high,medium,low',
-
-                'thumbnail' => 'nullable|image|mimes:jpg,jpeg,png,webp',
-
-                'attachments' => 'nullable|array|max:5',
-
-                'attachments.*' => [
-                    'file',
-                    function ($attribute, $value, $fail) {
-
-                        $allowed = [
-                            'jpg',
-                            'jpeg',
-                            'png',
-                            'webp',
-                            'mp4',
-                            'mov',
-                            'mp3',
-                            'wav',
-                            'aac',
-                            'opus',
-                            'pdf',
-                            'doc',
-                            'docx',
-                            'txt'
-                        ];
-
-                        $ext = strtolower(
-                            $value->getClientOriginalExtension()
-                        );
-
-                        if (!in_array($ext, $allowed)) {
-                            $fail('Invalid file format.');
-                        }
+                    if (!in_array($ext, $allowed, true)) {
+                        $fail('Invalid file format.');
                     }
-                ],
+                },
+            ],
 
-                'reminder_times' => 'nullable|array',
+            'reminder_times' => 'nullable|array',
+            'frequency_unit' => 'nullable|string|in:none,minutes,hours,days,weeks,months,years',
+            'frequency_value' => 'nullable|integer|min:0',
 
-                'frequency_unit' =>
-                'nullable|string|in:none,minutes,hours,days,weeks,months,years',
+            'is_mandatory_gap' => 'nullable|boolean',
+            'mandatory_gap_value' => 'nullable|integer|min:0',
+            'mandatory_gap_unit' => 'nullable|string|in:minutes,hours,days,weeks,years',
 
-                'frequency_value' =>
-                'nullable|integer|min:0',
+            'empty_stomach_value' => 'nullable|integer|min:0',
+            'empty_stomach_unit' => 'nullable|string',
+            'empty_stomach_after' => 'nullable|string',
 
+            'reminder_sound' => 'nullable|string|in:continuous,small,none',
+            'reminder_vibration' => 'nullable|boolean',
+            'show_in_drawer' => 'nullable|boolean',
+            'notification_sound' => 'nullable|boolean',
+            'notification_vibration' => 'nullable|boolean',
+            'show_full_screen' => 'nullable|boolean',
+            'custom_sound_path' => 'nullable|string',
 
-                /*
-                 * Mandatory Gap
-                 */
-                'is_mandatory_gap' =>
-                'nullable|boolean',
+            'duration_value' => 'nullable|numeric|min:0',
+            'duration_unit' => 'nullable|in:none,minutes,hours,days,weeks,months,years',
+            'due_date' => 'nullable|date',
+            'repeat_enabled' => 'nullable|boolean',
 
-                'mandatory_gap_value' =>
-                'nullable|integer|min:0',
+            'urls' => 'nullable|array',
+            'urls.*' => 'url|max:2048',
 
-                'mandatory_gap_unit' =>
-                'nullable|string|in:minutes,hours,days,weeks,years',
+            'time_window_enabled' => 'nullable|boolean',
+            'time_window_mode' => 'nullable|string|in:can,cannot',
+            'time_window_ranges' => 'nullable|array|max:3',
+            'time_window_ranges.*.from' => 'required_with:time_window_ranges|string|date_format:H:i',
+            'time_window_ranges.*.to' => 'required_with:time_window_ranges|string|date_format:H:i',
 
+            'days_of_week_enabled' => 'nullable|boolean',
+            'days_of_week_mode' => 'nullable|string|in:can,cannot',
+            'days_of_week' => 'nullable|array',
+            'days_of_week.*' => 'string|in:mon,tue,wed,thu,fri,sat,sun',
+            'weekly_days' => 'nullable|array',
+            'weekly_days.*' => 'string|in:mon,tue,wed,thu,fri,sat,sun',
 
-                /*
-                 * Empty Stomach Condition
-                 */
-                'empty_stomach_value' =>
-                'nullable|integer|min:0',
+            'public_holidays_enabled' => 'nullable|boolean',
+            'public_holidays_mode' => 'nullable|string|in:can,cannot',
+            'repeat_window' => 'nullable'
+        ]);
 
-                'empty_stomach_unit' =>
-                'nullable|string',
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
-                'empty_stomach_after' =>
-                'nullable|string',
+        // Maximum total attachment size: 10 MB.
+        if ($request->hasFile('attachments')) {
+            $totalSize = 0;
 
+            foreach ($request->file('attachments') as $file) {
+                $totalSize += $file->getSize();
+            }
 
-                'reminder_sound' =>
-                'nullable|string|in:continuous,small,none',
-
-                'reminder_vibration' =>
-                'nullable|boolean',
-
-                'show_in_drawer' =>
-                'nullable|boolean',
-
-                'notification_sound' =>
-                'nullable|boolean',
-
-                'notification_vibration' =>
-                'nullable|boolean',
-
-                'show_full_screen' =>
-                'nullable|boolean',
-
-                'custom_sound_path' =>
-                'nullable|string',
-
-                'duration_value' =>
-                'nullable|numeric|min:0',
-
-                'duration_unit' =>
-                'nullable|in:none,minutes,hours,days,weeks,months,years',
-
-                'due_date' =>
-                'nullable|date',
-
-                'repeat_enabled' =>
-                'nullable|boolean',
-
-                /*
-                 * URLs
-                 */
-                'urls' =>
-                'nullable|array',
-
-                'urls.*' =>
-                'url|max:2048',
-
-                /*
- * Time Window
- */
-                'time_window_enabled' =>
-                'nullable|boolean',
-
-                'time_window_mode' =>
-                'nullable|string|in:can,cannot',
-
-                'time_window_ranges' =>
-                'nullable|array|max:3',
-
-                'time_window_ranges.*.from' =>
-                'required_with:time_window_ranges|string|date_format:H:i',
-
-                'time_window_ranges.*.to' =>
-                'required_with:time_window_ranges|string|date_format:H:i',
-
-
-                /*
- * Days of Week
- */
-                'days_of_week_enabled' =>
-                'nullable|boolean',
-
-                'days_of_week_mode' =>
-                'nullable|string|in:can,cannot',
-
-                'days_of_week' =>
-                'nullable|array',
-
-                'days_of_week.*' =>
-                'string|in:mon,tue,wed,thu,fri,sat,sun',
-                
-                 'weekly_days' => 'nullable|array',
-                'weekly_days.*' => 'string|in:mon,tue,wed,thu,fri,sat,sun',
-
-
-                /*
- * Public Holidays
- */
-                'public_holidays_enabled' =>
-                'nullable|boolean',
-
-                'public_holidays_mode' =>
-                'nullable|string|in:can,cannot',
-
-
-
-
-            ]);
-
-
-            if ($validator->fails()) {
-
-                $errors = $validator->errors();
-
-                if ($request->hasFile('attachments')) {
-
-                    foreach (
-                        $request->file('attachments')
-                        as $index => $file
-                    ) {
-
-                        if ($errors->has("attachments.$index")) {
-
-                            return response()->json([
-                                'success' => false,
-                                'message' =>
-                                "Invalid file format: {$file->getClientOriginalName()}",
-                                'errors' => $errors
-                            ], 422);
-                        }
-                    }
-                }
-
+            if ($totalSize > 10 * 1024 * 1024) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $errors
+                    'message' => 'Total attachment size cannot exceed 10 MB',
                 ], 422);
             }
+        }
 
+        $data = $validator->validated();
 
+        /*
+         * Determine owner from authenticated actor.
+         */
+        $actorType = $request->attributes->get('actor_type');
+        $actorId = $request->attributes->get('actor_id');
+
+        if ($actorType === 'user' && $actorId) {
+            $data['user_id'] = $actorId;
+            $data['guest_id'] = null;
+            $guestId = null;
+        } elseif ($actorType === 'guest' && $actorId) {
+            $data['user_id'] = null;
+            $data['guest_id'] = $actorId;
+            $guestId = $actorId;
+        } elseif (
+            !$actorType &&
+            !empty($data['guest_id']) &&
+            empty($data['user_id'])
+        ) {
             /*
-             * Total attachment size validation
-             * Maximum 10 MB
+             * Initial guest request without a token.
+             * This trusts the supplied guest_id, so use only if
+             * your first-request flow authorizes that ID safely.
              */
-            if ($request->hasFile('attachments')) {
+            $guestId = $data['guest_id'];
+            $data['user_id'] = null;
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Authentication required or invalid activity owner.',
+            ], 401);
+        }
 
-                $totalSize = 0;
-
-                foreach (
-                    $request->file('attachments')
-                    as $file
-                ) {
-                    $totalSize += $file->getSize();
-                }
-
-                if ($totalSize > (10 * 1024 * 1024)) {
-
-                    return response()->json([
-                        'success' => false,
-                        'message' =>
-                        'Total attachment size cannot exceed 10 MB'
-                    ], 422);
-                }
-            }
-
-
-            $data = $validator->validated();
-
-
-            /*
-             * Check reminder time is not in the past
-             */
-            if (!empty($data['reminder_times'])) {
-
-                foreach ($data['reminder_times'] as $reminder) {
-
-                    if (
-                        !empty($reminder['date']) &&
-                        !empty($reminder['time'])
-                    ) {
-
+        // Validate reminder dates and times.
+        if (!empty($data['reminder_times'])) {
+            foreach ($data['reminder_times'] as $reminder) {
+                if (!empty($reminder['date']) && !empty($reminder['time'])) {
+                    try {
                         $reminderDateTime = Carbon::createFromFormat(
-                            'Y-m-d H:i',
+                            '!Y-m-d H:i',
                             $reminder['date'] . ' ' . $reminder['time'],
                             'Asia/Kolkata'
                         );
+                    } catch (\Exception $e) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Invalid reminder date or time.',
+                        ], 422);
+                    }
 
-                        if ($reminderDateTime->isPast()) {
-
-                            return response()->json([
-                                'success' => false,
-                                'message' =>
-                                'Reminder time cannot be in the past.'
-                            ], 422);
-                        }
+                    if ($reminderDateTime->isPast()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Reminder time cannot be in the past.',
+                        ], 422);
                     }
                 }
             }
+        }
 
-
-            /*
-             * Upload thumbnail
-             */
-            if ($request->hasFile('thumbnail')) {
-
-                $path = $request->file('thumbnail')
-                    ->store('thumbnails', 'public');
-
-                $data['thumbnail'] = basename($path);
-            }
-
-
-            /*
-             * Create activity
-             */
-            $activity = Activity::create($data);
-
-
-            /*
-             * Save attachments
-             */
-            if ($request->hasFile('attachments')) {
-
-                foreach (
-                    $request->file('attachments')
-                    as $file
-                ) {
-
-                    $fileName =
-                        $file->getClientOriginalName();
-
-                    $file->storeAs(
-                        'attachments',
-                        $fileName,
-                        'public'
-                    );
-
-                    Attachment::create([
-                        'user_id' =>
-                        $activity->user_id,
-
-                        'guest_id' =>
-                        $activity->guest_id,
-
-                        'activity_id' =>
-                        $activity->id,
-
-                        'file_name' =>
-                        $fileName,
-
-                        'file_size' =>
-                        $file->getSize(),
-                    ]);
-                }
-            }
-
-
-            return response()->json([
-                'success' => true,
-                'message' =>
-                'Activity created successfully',
-                'activity' =>
-                $activity->load('attachments')
-            ], 201);
-        } catch (\Exception $e) {
-
-            Log::error(
-                'Activity store error: ' .
-                    $e->getMessage()
+        // Upload thumbnail.
+        if ($request->hasFile('thumbnail')) {
+            $path = $request->file('thumbnail')->store(
+                'thumbnails',
+                'public'
             );
 
-            return response()->json([
-                'success' => false,
-                'message' =>
-                'Failed to create activity: ' .
-                    $e->getMessage()
-            ], 500);
+            $data['thumbnail'] = basename($path);
         }
+
+        /*
+         * Save activity and get/create guest token.
+         */
+        $guestTokenData = null;
+
+        $activity = DB::transaction(function () use (
+            $data,
+            $guestId,
+            &$guestTokenData
+        ) {
+            $activity = Activity::create($data);
+
+            if ($guestId !== null) {
+                // CALL the existing helper function.
+                $guestTokenData = $this->getOrCreateGuestToken($guestId);
+            }
+
+            return $activity;
+        });
+
+        // Save attachments.
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $fileName = $file->getClientOriginalName();
+
+                $file->storeAs(
+                    'attachments',
+                    $fileName,
+                    'public'
+                );
+
+                Attachment::create([
+                    'user_id' => $activity->user_id,
+                    'guest_id' => $activity->guest_id,
+                    'activity_id' => $activity->id,
+                    'file_name' => $fileName,
+                    'file_size' => $file->getSize(),
+                ]);
+            }
+        }
+
+        $response = [
+            'success' => true,
+            'message' => 'Activity created successfully',
+            'activity' => $activity->load('attachments'),
+        ];
+
+        if ($guestTokenData !== null) {
+            $response['guest_auth'] = $guestTokenData;
+        }
+
+        return response()->json($response, 201);
+
+    } catch (\Exception $e) {
+        Log::error('Activity store error', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create activity.',
+        ], 500);
     }
-
-
-
+}
     /**
      * Update an existing activity.
      *
@@ -829,7 +804,7 @@ class ActivityController extends Controller
 
                     'public_holidays_mode' =>
                     'nullable|string|in:can,cannot',
-
+'repeat_window' => 'nullable'
 
 
 
@@ -1224,56 +1199,38 @@ class ActivityController extends Controller
      *
      * BLOCKED when account deletion is requested.
      */
-  public function destroy(Request $request, $id)
-    {
-        Log::info(
-            "DELETE_REQUEST_ID: $id"
-        );
+ public function destroy(Request $request, $id)
+{
+    try {
+        $activity = $this->ownedActivities($request)->find($id);
 
-        try {
-
-           $activity = $this->ownedActivities($request)->find($id);
-
-            if (!$activity) {
-
-                return response()->json([
-                    'success' => false,
-                    'message' =>
-                    'Activity not found'
-                ], 404);
-            }
-
-
-            /*
-             * Account deletion restriction
-             */
-
-
-
-            $activity->deleted_at =
-                now()->second(0);
-
-            $activity->save();
-
-
-            return response()->json([
-                'success' => true,
-                'message' =>
-                'Activity moved to trash',
-                'deleted_at' =>
-                $activity->deleted_at
-            ]);
-        } catch (\Exception $e) {
-
+        if (!$activity) {
             return response()->json([
                 'success' => false,
-                'message' =>
-                'Failed to delete activity: ' .
-                    $e->getMessage()
-            ], 500);
+                'message' => 'Activity not found',
+            ], 404);
         }
-    }
 
+        $activity->deleted_at = now()->second(0);
+        $activity->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Activity moved to trash',
+            'deleted_at' => $activity->deleted_at,
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Activity destroy error', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to delete activity.',
+        ], 500);
+    }
+}
 
     /**
      * List soft-deleted activities.
@@ -1281,12 +1238,12 @@ class ActivityController extends Controller
      * READ-ONLY:
      * Users scheduled for deletion can still view trash.
      */
-   public function trash(Request $request)
+  public function trash(Request $request)
 {
     try {
         $activities = $this->ownedActivities($request)
-            ->with('attachments')
             ->onlyTrashed()
+            ->with('attachments')
             ->orderBy('deleted_at', 'desc')
             ->get();
 
@@ -1294,14 +1251,15 @@ class ActivityController extends Controller
             'success' => true,
             'activities' => $activities,
         ]);
+
     } catch (\Exception $e) {
-        Log::error('Trash activities fetch failed', [
+        Log::error('Activity trash error', [
             'error' => $e->getMessage(),
         ]);
 
         return response()->json([
             'success' => false,
-            'message' => 'Failed to fetch trashed activities',
+            'message' => 'Failed to fetch trash.',
         ], 500);
     }
 }
@@ -1360,74 +1318,58 @@ class ActivityController extends Controller
      * Only the authenticated user's or guest's own activity can be deleted.
      */
     public function forceDelete(Request $request, $id)
-    {
-        try {
-            $activity = $this->ownedActivities($request)
-                ->with('attachments')
-                ->onlyTrashed()
-                ->whereKey($id)
-                ->first();
+{
+    try {
+        $activity = $this->ownedActivities($request)
+            ->onlyTrashed()
+            ->with('attachments')
+            ->find($id);
 
-            if (!$activity) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Activity not found in trash',
-                ], 404);
-            }
-
-            // Block deletion if account deletion is scheduled.
-            $user = $request->user();
-
-            if ($user && $user->is_deletion_scheduled) {
-                return $this->deletionBlockedResponse();
-            }
-
-            // Delete thumbnail file.
-            if (
-                $activity->thumbnail &&
-                Storage::disk('public')->exists(
-                    'thumbnails/' . $activity->thumbnail
-                )
-            ) {
-                Storage::disk('public')->delete(
-                    'thumbnails/' . $activity->thumbnail
-                );
-            }
-
-            // Delete attachment files.
-            foreach ($activity->attachments as $attachment) {
-                if (
-                    $attachment->file_name &&
-                    Storage::disk('public')->exists(
-                        'attachments/' . $attachment->file_name
-                    )
-                ) {
-                    Storage::disk('public')->delete(
-                        'attachments/' . $attachment->file_name
-                    );
-                }
-            }
-
-            // Permanently delete the activity record.
-            $activity->forceDelete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Activity permanently deleted',
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Force delete activity failed', [
-                'activity_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-
+        if (!$activity) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to permanently delete activity',
-            ], 500);
+                'message' => 'Activity not found in trash',
+            ], 404);
         }
-    }
 
+        $thumbnail = $activity->thumbnail;
+        $attachmentNames = $activity->attachments
+            ->pluck('file_name')
+            ->all();
+
+        DB::transaction(function () use ($activity) {
+            $activity->attachments()->delete();
+            $activity->forceDelete();
+        });
+
+        if ($thumbnail) {
+            Storage::disk('public')->delete(
+                'thumbnails/' . $thumbnail
+            );
+        }
+
+        foreach ($attachmentNames as $fileName) {
+            Storage::disk('public')->delete(
+                'attachments/' . $fileName
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Activity permanently deleted',
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Activity force delete error', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to permanently delete activity.',
+        ], 500);
+    }
+}
 
     /**
      * Bulk restore all trashed activities.
@@ -1500,68 +1442,49 @@ class ActivityController extends Controller
      * Permanently delete all trashed activities belonging
      * to the authenticated user or guest.
      */
-    public function forceDeleteAll(Request $request)
-    {
-        try {
-            // Block deletion if account deletion is scheduled.
-            $user = $request->user();
+   public function forceDeleteAll(Request $request)
+{
+    try {
+        $activities = $this->ownedActivities($request)
+            ->onlyTrashed()
+            ->with('attachments')
+            ->get();
 
-            if ($user && $user->is_deletion_scheduled) {
-                return $this->deletionBlockedResponse();
-            }
-
-            // Fetch only the current user's or guest's trashed activities.
-            $activities = $this->ownedActivities($request)
-                ->with('attachments')
-                ->onlyTrashed()
-                ->get();
-
+        DB::transaction(function () use ($activities) {
             foreach ($activities as $activity) {
-
-                // Delete thumbnail file.
-                if (
-                    $activity->thumbnail &&
-                    Storage::disk('public')->exists(
-                        'thumbnails/' . $activity->thumbnail
-                    )
-                ) {
-                    Storage::disk('public')->delete(
-                        'thumbnails/' . $activity->thumbnail
-                    );
-                }
-
-                // Delete attachment files.
-                foreach ($activity->attachments as $attachment) {
-                    if (
-                        $attachment->file_name &&
-                        Storage::disk('public')->exists(
-                            'attachments/' . $attachment->file_name
-                        )
-                    ) {
-                        Storage::disk('public')->delete(
-                            'attachments/' . $attachment->file_name
-                        );
-                    }
-                }
-
-                // Permanently delete the activity record.
+                $activity->attachments()->delete();
                 $activity->forceDelete();
             }
+        });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'All trashed activities permanently deleted',
-                'deleted_count' => $activities->count(),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Force delete all activities failed', [
-                'error' => $e->getMessage(),
-            ]);
+        foreach ($activities as $activity) {
+            if ($activity->thumbnail) {
+                Storage::disk('public')->delete(
+                    'thumbnails/' . $activity->thumbnail
+                );
+            }
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to permanently delete activities',
-            ], 500);
+            foreach ($activity->attachments as $attachment) {
+                Storage::disk('public')->delete(
+                    'attachments/' . $attachment->file_name
+                );
+            }
         }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All trashed activities permanently deleted',
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Activity force delete all error', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to permanently delete activities.',
+        ], 500);
     }
+}
 }

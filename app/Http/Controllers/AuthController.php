@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 use Carbon\Carbon;
 use App\Mail\OtpMail;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
+
 
 class AuthController extends Controller
 {
@@ -124,7 +126,7 @@ class AuthController extends Controller
             try { \Illuminate\Support\Facades\DB::statement("SET time_zone = '+05:30'"); } catch (\Exception $e) {}
 
             $cooldownDays = 14;
-            $now = \Carbon\Carbon::now('Asia/Kolkata');
+            $now = Carbon::now('Asia/Kolkata');
             $deletionTime = $now->copy()->addDays($cooldownDays);
             $formattedDate = $deletionTime->format('d M Y \a\t h:i A');
 
@@ -187,7 +189,7 @@ class AuthController extends Controller
                     'is_deletion_scheduled' => 0,
                     'deletion_scheduled_at' => null,
                     'deletion_due_at'       => null,
-                    'updated_at'            => \Carbon\Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
+                    'updated_at'            => Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
                 ]);
 
             return response()->json([
@@ -220,7 +222,7 @@ class AuthController extends Controller
             $query->update([
                 'is_completed' => 0,
                 'completed_at' => null,
-                'updated_at'   => \Carbon\Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
+                'updated_at'   => Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
             ]);
 
             return response()->json([
@@ -248,7 +250,7 @@ class AuthController extends Controller
 
             $snoozedUntil = null;
             if (!empty($rawSnoozedUntil)) {
-                $snoozedUntil = \Carbon\Carbon::parse($rawSnoozedUntil)->setTimezone('Asia/Kolkata')->format('Y-m-d H:i:00');
+                $snoozedUntil = Carbon::parse($rawSnoozedUntil)->setTimezone('Asia/Kolkata')->format('Y-m-d H:i:00');
             }
 
             $query = \Illuminate\Support\Facades\DB::table('activities');
@@ -262,7 +264,7 @@ class AuthController extends Controller
 
             $query->update([
                 'snoozed_until' => $snoozedUntil,
-                'updated_at'    => \Carbon\Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
+                'updated_at'    => Carbon::now('Asia/Kolkata')->format('Y-m-d H:i:s'),
             ]);
 
             return response()->json([
@@ -377,6 +379,9 @@ public function saveHolidaySettings(Request $request)
 
     $user->disabled_holidays = $request->disabled_holidays ?? [];
     $user->custom_holiday_ranges = $request->custom_holiday_ranges ?? [];
+    if ($request->has('country_code')) {                    // ← ADD THIS
+    $user->country_code = $request->country_code;      // ← ADD THIS
+}                                                      // ← ADD THIS
     $user->save();
 
     return response()->json([
@@ -412,5 +417,38 @@ public function getHolidaySettings(Request $request)
         'country_code' => $user->country_code ?? null,     // ← add
     ]);
 }
+public function getUserCountry(Request $request)
+{
+    $ip = $request->header('X-Forwarded-For') 
+        ?? $request->header('CF-Connecting-IP')
+        ?? $request->ip();
+    
+    // First IP in X-Forwarded-For chain is the real client
+    $ip = trim(explode(',', $ip)[0]);
+    
+    $countryCode = null;
+    try {
+        $data = json_decode(file_get_contents("http://ip-api.com/json/{$ip}?fields=countryCode"), true);
+        $countryCode = $data['countryCode'] ?? null;
+    } catch (\Exception $e) {}
+
+    return response()->json([
+        'country_code' => $countryCode,
+        'ip' => $ip,
+    ]);
+}
+public function getCountries()
+{
+    return response()->json([
+        'status' => true,
+        'data' => DB::table('holiday_countries')
+            ->where('active', 1)
+            ->orderBy('name')
+            ->get(['code', 'name', 'cal_id']),
+    ]);
+}
+
+
+
 
 }

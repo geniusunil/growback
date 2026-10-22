@@ -14,3 +14,6 @@ Schedule::command('app:send-scheduled-notifications')->everyMinute();
 
 Schedule::command('accounts:delete-scheduled')
     ->everyMinute();
+\Illuminate\Support\Facades\Schedule::command('activities:purge-completed --execute')
+    ->dailyAt('02:00')
+    ->withoutOverlapping();

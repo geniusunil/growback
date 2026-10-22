@@ -76,6 +76,8 @@ return new class extends Migration
             $table->integer('mandatory_gap_value')->default(0);
 
             $table->string('mandatory_gap_unit')->default('minutes');
+            
+            $table->json('repeat_window')->nullable();
 
             $table->json('urls')->nullable();
 
