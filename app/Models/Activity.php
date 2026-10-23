@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use App\Models\User;
+use App\Models\Attachment;
+use App\Models\ActivitySubtask;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Attachment;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Activity extends Model
 {
@@ -61,7 +64,6 @@ class Activity extends Model
         'days_of_week_enabled',
         'days_of_week_mode',
         'days_of_week',
-
         'weekly_days',
 
         // Public Holidays
@@ -69,9 +71,7 @@ class Activity extends Model
         'public_holidays_mode',
         'custom_holiday_ranges',
         'disabled_holidays',
-        'repeat_window'
-
-       
+        'repeat_window',
     ];
 
     protected $casts = [
@@ -99,39 +99,54 @@ class Activity extends Model
         // URLs
         'urls' => 'array',
 
+        // Time Window
         'time_window_enabled' => 'boolean',
         'time_window_mode' => 'string',
         'time_window_ranges' => 'array',
 
+        // Days
         'days_of_week_enabled' => 'boolean',
         'days_of_week_mode' => 'string',
         'days_of_week' => 'array',
-
         'weekly_days' => 'array',
 
+        // Public Holidays
         'public_holidays_enabled' => 'boolean',
         'public_holidays_mode' => 'string',
-         'custom_holiday_ranges' => 'array',
+        'custom_holiday_ranges' => 'array',
         'disabled_holidays' => 'array',
-        'repeat_window' => 'array',
 
+        // Repeat Window
+        'repeat_window' => 'array',
     ];
 
-    public function user()
+    protected $appends = [
+        'thumbnail_url',
+    ];
+
+    // User Relationship
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function attachments()
+    // Attachments Relationship
+    public function attachments(): HasMany
     {
         return $this->hasMany(Attachment::class);
     }
 
-    protected $appends = [
-        'thumbnail_url'
-    ];
+    // Activity Subtasks Relationship
+    public function subtasks(): HasMany
+    {
+        return $this->hasMany(
+            ActivitySubtask::class,
+            'parent_activity_id'
+        )->orderBy('sort_order');
+    }
 
-    public function getThumbnailUrlAttribute()
+    // Thumbnail URL Accessor
+    public function getThumbnailUrlAttribute(): ?string
     {
         return $this->thumbnail
             ? asset('storage/thumbnails/' . $this->thumbnail)

@@ -13,7 +13,7 @@ use App\Models\GuestSession;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
-
+use App\Models\ActivitySubtask;
 
 class ActivityController extends Controller
 {
@@ -228,7 +228,39 @@ public function createGuestSession(Request $request)
         }
     }
 
+public function getSubtasks(Request $request, $id)
+{
+    try {
+        $activity = $this->ownedActivities($request)
+            ->with([
+                'subtasks.items' => function ($query) {
+                    $query->orderBy('sort_order');
+                },
+            ])
+            ->find($id);
 
+        if (!$activity) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Activity not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $activity->subtasks,
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Get activity subtasks error', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to fetch subtasks.',
+        ], 500);
+    }
+}
     /**
      * Mark activity as active again.
      *

@@ -100,3 +100,7 @@ Route::middleware('user-or-guest')->group(function () {
     Route::get('/user-location', [AuthController::class, 'getUserCountry']);
     Route::get('/holiday-countries', [AuthController::class, 'getCountries']);
 
+Route::get('/activities/{id}/subtasks', [
+    ActivityController::class,
+    'getSubtasks'
+]);
